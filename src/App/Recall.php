@@ -19,8 +19,9 @@ use Mercurius\Memory\Domain\TextAnalyzer;
  * ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L964-L1060 (relevant) — IDF weights, words no fact
  *      holds count against coverage at the smallest weight, a matched identifier is decisive, one shared word that
  *      other facts hold too does not pick a fact out; without n-grams, name forms and the FTS index: keys are stems
- * ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L615-L636 (_rerank) — HRR as a share of the score of
- *      candidates the words already picked, shifted to [0, 1]; it never lets a fact past the gate
+ * ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L615-L636 (_rerank) — HRR among candidates the words
+ *      already picked; it never lets a fact past the gate. Holographic gives it 0.3 of the score; here it only breaks
+ *      ties (TIE), as measured
  */
 final class Recall {
     public const BUDGET = 1500;
@@ -30,8 +31,16 @@ final class Recall {
     public const WINDOW = 20;
     private const CANDIDATES = 100;
     private const HALF_LIFE_DAYS = 180.0;
-    /** share of HRR in the score of a fact that passed the gate */
+    /** the weight of HRR: the setting multiplies TIE, so the vector only orders facts the words scored nearly alike */
     public const HRR_WEIGHT = 0.3;
+    /**
+     * HRR breaks ties: at full weight and full similarity it adds this much to a score of about one. Measured on the sets
+     * of three languages: as a share of the score (0.3 of it) HRR changed no fact of the top five and moved the order
+     * within noise either way.
+     */
+    public const TIE = 0.02;
+    /** a fact under this share of the best one's relevance is not given: measured, 0.7 halves the extra facts at no loss */
+    public const CUT = 0.7;
     public const RELATED_LIMIT = 10;
     /**
      * facts of a name the message mentions, found without shared words
@@ -100,11 +109,21 @@ final class Recall {
             return [];
         }
         $taken = [];
+        $spoken = [];
         foreach ($have as $fact) {
             $taken[$fact->id] = true;
+            foreach ($fact->keys as $key) {
+                $spoken[$key] = true;
+            }
         }
         $candidates = [];
         foreach ($names as $name) {
+            // spec: brief/memory.md#анализ-текста — a name the words already found facts of brings no more: its facts
+            //       without shared words are noise beside an answer
+            $nameKeys = $this->analyzer->keys($name);
+            if ($nameKeys !== [] && array_filter($nameKeys, static fn(string $k): bool => isset($spoken[$k])) !== []) {
+                continue;
+            }
             foreach ($this->related($name, $scopes, self::ENTITY_FACTS * 3) as $fact) {
                 if (!isset($taken[$fact->id]) && !isset($given[$fact->id])) {
                     $candidates[$fact->id] = $fact;
@@ -156,82 +175,120 @@ final class Recall {
      * @return list<Fact>
      */
     private function byWords(string $message, array $scopes, array $given, int $budget): array {
-        $keys = $this->analyzer->keys($message);
-        if ($keys === []) {
+        $terms = $this->analyzer->terms($message);
+        if ($terms === []) {
             return [];
         }
+        $keys = array_values(array_unique(array_merge(...$terms)));
         // spec: brief/memory.md#анализ-текста — a same-root word counts ROOT_WEIGHT of an exact one and never recalls alone
         // ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L276-L291 — the root match weighed at
         //      _DERIV_WEIGHT; here the question's stems are widened, so facts keep their keys as they are
-        $roots = [];
-        foreach ($keys as $key) {
-            foreach ($this->analyzer->related($key) as $root) {
-                if (!in_array($root, $keys, true)) {
-                    $roots[$root] = true;
+        /** @var list<list<string>> $termRoots the same-root keys of each word */
+        $termRoots = [];
+        foreach ($terms as $i => $term) {
+            $termRoots[$i] = [];
+            foreach ($term as $key) {
+                foreach ($this->analyzer->related($key) as $root) {
+                    if (!in_array($root, $keys, true) && !in_array($root, $termRoots[$i], true)) {
+                        $termRoots[$i][] = $root;
+                    }
                 }
             }
         }
-        $roots = array_map(strval(...), array_keys($roots));
+        $roots = array_values(array_unique(array_merge([], ...$termRoots)));
         $df = $this->store->frequencies($scopes, [...$keys, ...$roots]);
         $total = (float) max($df[''], 1);
+        $idf = static fn(string $key): float => ($df[$key] ?? 0) > 0 ? log(1.0 + $total / (float) $df[$key]) : 0.0;
+        // spec: brief/memory.md#анализ-текста — a word counts once, by the best-known of its keys
+        /** @var list<float> $termWeights 0 — a word no fact holds */
+        $termWeights = [];
         $weights = [];
-        foreach ($keys as $key) {
-            if (($df[$key] ?? 0) > 0) {
-                $weights[$key] = log(1.0 + $total / (float) $df[$key]);
-            }
-        }
         $rootWeights = [];
-        foreach ($roots as $root) {
-            if (($df[$root] ?? 0) > 0) {
-                $rootWeights[$root] = self::ROOT_WEIGHT * log(1.0 + $total / (float) $df[$root]);
+        foreach ($terms as $i => $term) {
+            $termWeights[$i] = max(array_map($idf, $term));
+            foreach ($term as $key) {
+                if ($idf($key) > 0.0) {
+                    $weights[$key] = $idf($key);
+                }
+            }
+            foreach ($termRoots[$i] as $root) {
+                if ($idf($root) > 0.0) {
+                    $rootWeights[$root] = self::ROOT_WEIGHT * $idf($root);
+                }
             }
         }
-        if ($weights === []) {
+        $knownWeights = array_filter($termWeights, static fn(float $w): bool => $w > 0.0);
+        if ($knownWeights === []) {
             return [];
         }
-        $unknown = count($keys) - count($weights);
-        $sum = array_sum($weights) + (float) $unknown * min($weights);
+        $unknown = count($termWeights) - count($knownWeights);
+        $sum = array_sum($knownWeights) + (float) $unknown * min($knownWeights);
         $now = ($this->now)();
 
         // array keys of numeric words come back as ints
         $known = array_map(strval(...), array_keys($weights));
         $knownRoots = array_map(strval(...), array_keys($rootWeights));
-        /** @var list<array{Fact, float, float}> $passed fact, its coverage score, its age factor */
+        /** @var list<array{Fact, float, float}> $passed fact, its coverage, its age factor */
         $passed = [];
         // spec: brief/memory.md#анализ-текста — the candidates are the facts that match the most, weighed as the coverage is
         foreach ($this->store->candidates($scopes, [...$known, ...$knownRoots], self::CANDIDATES, $weights + $rootWeights) as $fact) {
             if (isset($given[$fact->id]) || $fact->trust < self::MIN_TRUST - 1e-9) {
                 continue;
             }
-            $matched = array_values(array_intersect($known, $fact->keys));
-            if ($matched === []) {
+            $holds = array_flip($fact->keys);
+            $covered = 0.0;
+            $exact = 0;
+            $rooted = 0;
+            $identifier = false;
+            $frequent = false;
+            foreach ($terms as $i => $term) {
+                $hit = array_values(array_filter($term, static fn(string $k): bool => isset($holds[$k])));
+                if ($hit !== []) {
+                    $exact++;
+                    $covered += $termWeights[$i];
+                    foreach ($hit as $key) {
+                        $identifier = $identifier || TextAnalyzer::isIdentifier($key);
+                        $frequent = $frequent || ($df[$key] ?? 0) > 1;
+                    }
+                    continue;
+                }
+                $best = 0.0;
+                foreach ($termRoots[$i] as $root) {
+                    if (isset($holds[$root])) {
+                        $best = max($best, $rootWeights[$root] ?? 0.0);
+                    }
+                }
+                if ($best > 0.0) {
+                    $rooted++;
+                    $covered += $best;
+                }
+            }
+            if ($exact === 0) {
                 continue;
             }
-            $identifier = false;
-            foreach ($matched as $key) {
-                $identifier = $identifier || TextAnalyzer::isIdentifier($key);
-            }
-            $rooted = array_values(array_intersect($knownRoots, $fact->keys));
-            $coverage = min(1.0, (array_sum(array_map(static fn(string $k): float => $weights[$k], $matched))
-                + array_sum(array_map(static fn(string $k): float => $rootWeights[$k], $rooted))) / $sum);
+            $coverage = min(1.0, $covered / $sum);
             // One shared word of a longer message, held by other facts too ("what day is it" and "every day"), is
             // about none of them.
-            $lone = count($keys) > 1 && count($matched) + count($rooted) === 1 && ($df[$matched[0]] ?? 0) > 1;
+            $lone = count($terms) > 1 && $exact + $rooted === 1 && $frequent;
             if (!$identifier && ($coverage < self::MIN_COVERAGE || $lone)) {
                 continue;
             }
             $age = (float) max(0, $now - $fact->updatedAt) / 86400.0;
-            $passed[] = [$fact, $identifier ? max($coverage, 1.0) : $coverage, $fact->trust * 0.5 ** ($age / self::HALF_LIFE_DAYS)];
+            $passed[] = [$fact, $coverage, $fact->trust * 0.5 ** ($age / self::HALF_LIFE_DAYS)];
         }
+        // spec: brief/memory.md#анализ-текста — a fact far below the best one is not the answer, whatever let it through
+        $best = $passed === [] ? 0.0 : max(array_map(static fn(array $p): float => $p[1], $passed));
+        $passed = array_values(array_filter($passed, static fn(array $p): bool => $p[1] >= self::CUT * $best - 1e-9));
         $hrr = [];
         if ($this->hrrWeight > 0.0 && count($passed) > 1) {
             $hrr = $this->store->similarities(array_map(static fn(array $p): int => $p[0]->id, $passed), Hrr::phasor(Hrr::query($keys)));
         }
         /** @var list<array{Fact, float}> $scored */
         $scored = [];
-        foreach ($passed as [$fact, $coverage, $factor]) {
-            $relevance = isset($hrr[$fact->id]) ? (1.0 - $this->hrrWeight) * $coverage + $this->hrrWeight * ($hrr[$fact->id] + 1.0) / 2.0 : $coverage;
-            $scored[] = [$fact, $relevance * $factor];
+        foreach ($passed as [$fact, $relevance, $factor]) {
+            // spec: brief/memory.md#анализ-текста — HRR breaks ties: at most TIE of a score, never more than a small gap
+            $tie = isset($hrr[$fact->id]) ? $this->hrrWeight * self::TIE * max(0.0, $hrr[$fact->id]) : 0.0;
+            $scored[] = [$fact, ($relevance + $tie) * $factor];
         }
         usort($scored, self::better(...));
 

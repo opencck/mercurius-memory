@@ -88,38 +88,63 @@ final class TextAnalyzer {
 
     /** @return list<string> unique keys in the order they appear */
     public function keys(string $text): array {
+        $keys = [];
+        foreach ($this->terms($text) as $term) {
+            foreach ($term as $key) {
+                $keys[$key] = true;
+            }
+        }
+        // PHP turns a numeric string key ("10") into an int: keys stay strings.
+        return array_map(strval(...), array_keys($keys));
+    }
+
+    /**
+     * The words of a text, each as the keys it may match by: its stem (or the identifier whole) and the key of its
+     * borrowed-word group. A word counts once in coverage, however many keys it has; a hyphenated word is the whole and
+     * each part as words of their own.
+     *
+     * spec: brief/memory.md#анализ-текста — a word is counted once: «бэкап» and its group key are one word
+     *
+     * @return list<non-empty-list<string>> in the order they appear; a word met again is not repeated
+     */
+    public function terms(string $text): array {
         $text = str_replace(['ё', 'Ё'], ['е', 'Е'], $text);
         preg_match_all('~/[\w.\-/]+|[\p{L}\p{N}_]+(?:[.\-][\p{L}\p{N}_]+)*~u', $text, $m);
-        $keys = [];
+        /** @var list<non-empty-list<string>> $terms */
+        $terms = [];
+        $seen = [];
         foreach ($m[0] as $token) {
             $word = mb_strtolower($token);
             if (isset($this->stop[$word]) || mb_strlen($word) < 2) {
                 continue;
             }
+            $term = [];
             $key = self::isIdentifier($word) || preg_match('~\d~', $word) === 1 ? $word : $this->stem($word);
             if ($key !== '' && !isset($this->stop[$key])) {
-                $keys[$key] = true;
+                $term[] = $key;
             }
             $loan = self::loans()[$word] ?? null;
             if ($loan !== null) {
-                $keys[$loan] = true;
+                $term[] = $loan;
             }
+            self::addTerm($terms, $seen, $term);
             // A hyphenated word ("vpn-сервер", "telegram-бот") is also its parts: the question says "VPN" or "бот".
             if (str_contains($word, '-') && !self::isIdentifier($word)) {
                 foreach (explode('-', $word) as $part) {
+                    $part_ = [];
                     $stem = mb_strlen($part) < 2 || isset($this->stop[$part]) ? '' : $this->stem($part);
                     if ($stem !== '' && !isset($this->stop[$stem])) {
-                        $keys[$stem] = true;
+                        $part_[] = $stem;
                     }
                     $loan = self::loans()[$part] ?? null;
                     if ($loan !== null) {
-                        $keys[$loan] = true;
+                        $part_[] = $loan;
                     }
+                    self::addTerm($terms, $seen, $part_);
                 }
             }
         }
-        // PHP turns a numeric string key ("10") into an int: keys stay strings.
-        return array_map(strval(...), array_keys($keys));
+        return $terms;
     }
 
     /**
@@ -211,6 +236,22 @@ final class TextAnalyzer {
             $pairs[$pair[1]][] = $pair[0];
         }
         return self::$derivation = $pairs;
+    }
+
+    /**
+     * @param list<non-empty-list<string>> $terms
+     * @param array<string, true> $seen
+     * @param list<string> $term
+     * @param-out list<non-empty-list<string>> $terms
+     * @param-out array<string, true> $seen
+     */
+    private static function addTerm(array &$terms, array &$seen, array $term): void {
+        $term = array_values(array_unique($term));
+        $id = implode("\x1f", $term);
+        if ($term !== [] && !isset($seen[$id])) {
+            $seen[$id] = true;
+            $terms[] = $term;
+        }
     }
 
     /** @return array<string, string> every form of a borrowed word => "loan:<its first spelling>" */

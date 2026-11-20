@@ -52,7 +52,7 @@ final class InMemoryMemoryStore implements MemoryStore {
 
     /** @return list<float> */
     private function phasorOf(Fact $fact): array {
-        $key = implode("", $fact->keys);
+        $key = implode("\x1f", $fact->keys);
         return $this->phasors[$key] ??= Hrr::phasor(Hrr::fact($fact->keys));
     }
 
