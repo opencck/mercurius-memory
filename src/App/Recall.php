@@ -185,15 +185,17 @@ final class Recall {
         //      _DERIV_WEIGHT; here the question's stems are widened, so facts keep their keys as they are
         /** @var list<list<string>> $termRoots the same-root keys of each word */
         $termRoots = [];
+        $asked = array_flip($keys);
         foreach ($terms as $i => $term) {
-            $termRoots[$i] = [];
+            $roots = [];
             foreach ($term as $key) {
                 foreach ($this->analyzer->related($key) as $root) {
-                    if (!in_array($root, $keys, true) && !in_array($root, $termRoots[$i], true)) {
-                        $termRoots[$i][] = $root;
+                    if (!isset($asked[$root])) {
+                        $roots[$root] = true;
                     }
                 }
             }
+            $termRoots[$i] = array_map(strval(...), array_keys($roots));
         }
         $roots = array_values(array_unique(array_merge([], ...$termRoots)));
         $df = $this->store->frequencies($scopes, [...$keys, ...$roots]);

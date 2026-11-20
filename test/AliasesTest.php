@@ -25,13 +25,16 @@ final class AliasesTest extends TestCase {
         $analyzer = new TextAnalyzer();
         $fact = $memory->addFact('owner', Fact::KNOWLEDGE, 'Кластер прокс живёт в стойке у окна', $analyzer->keys('Кластер прокс живёт в стойке у окна'), 0.8, Fact::OWNER_SAID, null);
         $recall = new Recall($memory, $analyzer);
-        self::assertSame([], $recall->find('где стоит proxmox', ['owner']));
+        $before = $recall->find('где стоит proxmox', ['owner']);
+        self::assertSame([], $before, 'no stem or table joins the two words');
 
         $aliases = new Aliases(new InMemoryAliasStore(), $analyzer, $memory, new ContentScreen());
         [$changed, $said] = $aliases->add(['прокс', 'Proxmox'], 7);
 
         self::assertTrue($changed, $said);
-        self::assertSame([$fact->id], array_map(static fn(Fact $f): int => $f->id, $recall->find('где стоит proxmox', ['owner'])), 'the facts were keyed again');
+        $found = $recall->find('где стоит proxmox', ['owner']);
+        self::assertCount(1, $found, 'the facts were keyed again');
+        self::assertSame($fact->id, $found[0]->id);
         self::assertStringContainsString('прокс, proxmox', $aliases->list());
     }
 

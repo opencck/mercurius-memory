@@ -35,8 +35,12 @@ final class Chinese {
     private const UNITS = ['个', '元', '块', '岁', '度', '年', '月', '日', '号', '天', '周', '点', '分', '秒', '次', '人', '位', '层', '楼', '倍',
         '公里', '公斤', '分钟', '小时', '星期', '美元', '欧元', '年级', '兆', '岁', '号', '本', '张', '台', '辆', '只', '件', '杯', '瓶', '万', '亿'];
 
-    /** @var array<string, string>|null */
+    /** @var array<array-key, string>|null a character (a digit one comes back as an int key) => its folded form */
     private static ?array $fold = null;
+    /** @var array<string, true>|null */
+    private static ?array $grammar = null;
+    /** @var array<string, true>|null */
+    private static ?array $numerals = null;
     /** @var array{array<string, string>, float, array<string, true>}|null the lines by first character, floor, names */
     private static ?array $table = null;
 
@@ -181,12 +185,14 @@ final class Chinese {
     }
 
     private static function grammar(string $char): bool {
-        return mb_strpos(self::FUNCTION . self::NEGATORS, $char) !== false;
+        self::$grammar ??= array_fill_keys(mb_str_split(self::FUNCTION . self::NEGATORS), true);
+        return isset(self::$grammar[$char]);
     }
 
     /** Whether a one-character word is a key alone: 猫, 车, 药 — not 的, 不, 三, 年, nor the commonest, nor a surname. */
     private static function alone(string $char): bool {
-        if (self::grammar($char) || mb_strpos(self::NOT_ALONE, $char) !== false) {
+        self::$numerals ??= array_fill_keys(mb_str_split(self::NOT_ALONE), true);
+        if (self::grammar($char) || isset(self::$numerals[$char])) {
             return false;
         }
         [, $floor, $names] = self::table();
@@ -195,7 +201,7 @@ final class Chinese {
         }
         $p = self::wordsOf($char)[$char] ?? null;
         // the log probability over the floor (minus the log of the total) is round(4 · ln f) / 4
-        return $p !== null && $p - $floor < (self::COMMON - 0.5) / 4.0;
+        return $p !== null && $p - $floor < ((float) self::COMMON - 0.5) / 4.0;
     }
 
     /**
@@ -264,7 +270,7 @@ final class Chinese {
                 $step = $rest === '' ? false : strpos(self::DIGITS, $rest[-1]);
                 if ($step !== false) {
                     $word = $first . substr($rest, 0, -1);
-                    $words[$word] = $step / 4.0 - self::$total;
+                    $words[$word] = (float) $step / 4.0 - self::$total;
                     $max = max($max, mb_strlen($word));
                 }
             }

@@ -60,10 +60,10 @@ final class Aliases {
         }
         $all = $into === null ? $words : array_values(array_unique([...$groups[$into], ...$words]));
         if (count($all) < 2) {
-            return [false, t('app.aliases.few')];
+            return [false, t('app.aliases.too_few')];
         }
         if (count($all) > self::MAX_WORDS) {
-            return [false, sprintf(t('app.aliases.many'), self::MAX_WORDS)];
+            return [false, sprintf(t('app.aliases.too_many'), self::MAX_WORDS)];
         }
         if ($into === null && count($groups) >= self::MAX_GROUPS) {
             return [false, sprintf(t('app.aliases.full'), self::MAX_GROUPS)];

@@ -20,7 +20,13 @@ final class PostgresAliasStore implements AliasStore {
             if (!is_int($id) || !is_array($words)) {
                 continue;
             }
-            $groups[$id] = array_values(array_filter($words, is_string(...)));
+            $list = [];
+            foreach (array_keys($words) as $i) {
+                if (isset($words[$i]) && is_string($words[$i])) {
+                    $list[] = $words[$i];
+                }
+            }
+            $groups[$id] = $list;
         }
         return $groups;
     }
