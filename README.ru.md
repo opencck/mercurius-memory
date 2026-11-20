@@ -2,14 +2,48 @@
 
 [English](README.md) | **Русский**
 
-Долговременная память агента: хранилище фактов с версиями, доверием, происхождением и сущностями, лексический поиск с гейтом релевантности и голографическими представлениями (HRR), фоновая консолидация. По принципам hermes-plugin-holographic и hermes-dreaming.
+Память для агентов на AMPHP и PostgreSQL: факты с версиями, доверием и происхождением; вспоминание по ключам стемов,
+однокоренным словам и векторам HRR; предложения новых и изменённых фактов, которые решает владелец; слой ядра всегда в
+контексте; ночная проверка, которая находит повторы, противоречия и факты, переставшие помогать.
 
 Часть проекта [Меркурий (Mercurius)](https://github.com/opencck/mercurius) — автономного персонального агента. Пакет не зависит от приложения Меркурия и может использоваться отдельно.
 
-**Статус:** код пока в основном репозитории, в [`src/Memory/`](https://github.com/opencck/mercurius/tree/master/src/Memory) (факты, поиск по смыслу, консолидация, HRR), и переезжает сюда следующим.
+**Статус:** используется Меркурием.
 
-**Стек:** PHP 8.2+, AMPHP v3, PostgreSQL.
+**Стек:** PHP 8.2+, AMPHP v3, `amphp/postgres`, PostgreSQL 17 с `pgvector`, `wamania/php-stemmer`.
+
+## Устройство
+
+| Путь | Что там |
+|------|---------|
+| `src/Domain/` | `Fact`, `Proposal`, `MemoryStore` (узкий интерфейс хранилища), `TextAnalyzer` (ключи текста), `Hrr`, `ContentScreen` (что не может стать фактом) |
+| `src/App/` | `Recall`, `Proposals`, `CoreEntries`, `Consolidation`, `Corroboration`, `MemoryContext`, `Audience` |
+| `src/Infrastructure/` | `PostgresMemoryStore`, `PostgresConsolidationJournal`; `InMemoryMemoryStore` и `InMemoryConsolidationJournal` — для тестов и простых случаев |
+| `src/Testing/MemoryStoreContract.php` | Один контрактный тест для любого `MemoryStore`: унаследуйте его своим хранилищем |
+| `migrations/` | SQL таблиц памяти; каталог — `Migrations::directory()` |
+| `resources/` | Тексты на английском; словарь однокоренных русских слов (DerivBase.Ru, Apache 2.0) |
+
+## Использование
+
+Миграции из `Migrations::directory()` применяются вместе со своими (нумерация общая с приложением, которое их
+использует), затем:
+
+```php
+use Mercurius\Memory\Domain\TextAnalyzer;
+use Mercurius\Memory\Infrastructure\PostgresMemoryStore;
+
+$store = new PostgresMemoryStore($postgres);
+$keys = (new TextAnalyzer())->keys('Владелец пьёт чай без сахара');
+$fact = $store->addFact('owner', 'knowledge', 'Владелец пьёт чай без сахара', $keys, 0.8, 'owner_said', null);
+```
+
+Тексты — на английском; свои задаются один раз: `Mercurius\Memory\Texts::translateWith(fn(string $key): string => ...)`.
+
+## Проверки
+
+`composer check` — PHPUnit, PHPStan (уровень max) и Psalm (уровень 1). Хранилище PostgreSQL проверяет приложение на
+настоящей базе (`MemoryStoreContract`).
 
 ## Лицензия
 
-[MIT](LICENSE)
+[MIT](LICENSE). Словарь в `resources/dictionaries/` — под Apache 2.0, см. файл лицензии рядом с ним.

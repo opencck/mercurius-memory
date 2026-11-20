@@ -1,0 +1,53 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Mercurius\Memory\Test;
+
+use DateTimeZone;
+use Mercurius\Memory\App\Corroboration;
+use Mercurius\Memory\Domain\TextAnalyzer;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * In how many different days a person said a fact in their own messages: code tells what holds from what was said once.
+ *
+ * spec: BRIEF.md#консолидация-dreaming — what the owner repeated on different days
+ */
+final class CorroborationTest extends TestCase {
+    private const DAY = 86400;
+
+    private static function moment(int $day, int $hour = 12): int {
+        return 1_763_337_600 + $day * self::DAY + $hour * 3600; // 2025-11-17 00:00 UTC
+    }
+
+    public function testDaysAreCountedByTwoSharedWordsInTheOwnersOwnWords(): void {
+        $days = (new Corroboration(new TextAnalyzer()))->days('Бэкапы базы делаются каждую ночь', [
+            ['бэкапы базы ночью опять упали?', self::moment(0)],
+            ['напомни про бэкап базы', self::moment(0, 18)],
+            ['проверь бэкапы базы', self::moment(2)],
+            ['бэкапы базы больше не делаются', self::moment(4)],
+            ['какая у нас база?', self::moment(5)],
+            ["посмотри\n\n<untrusted-data source=\"forward\">\nбэкапы базы делаются ночью\n</untrusted-data>", self::moment(6)],
+        ], new DateTimeZone('UTC'));
+
+        self::assertSame(2, $days, 'twice on the first day is one day; a negation, one word and a forward are not');
+    }
+
+    public function testALongRareWordIsEnoughAlone(): void {
+        $days = (new Corroboration(new TextAnalyzer()))->days('Владелец продаёт через Wildberries', [
+            ['что там на wildberries?', self::moment(1)],
+            ['что там через неделю?', self::moment(2)],
+        ], new DateTimeZone('UTC'));
+
+        self::assertSame(1, $days);
+    }
+
+    public function testDaysAreTheOwnersLocalDays(): void {
+        $corroboration = new Corroboration(new TextAnalyzer());
+        $lines = [['кофе без сахара, как всегда', self::moment(0, 22)], ['кофе без сахара', self::moment(1, 1)]];
+
+        self::assertSame(2, $corroboration->days('Владелец пьёт кофе без сахара', $lines, new DateTimeZone('UTC')));
+        self::assertSame(1, $corroboration->days('Владелец пьёт кофе без сахара', $lines, new DateTimeZone('+03:00')), '01:00 and 04:00 of one day');
+    }
+}

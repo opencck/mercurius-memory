@@ -1,0 +1,52 @@
+{
+    "name": "opencck/mercurius-memory",
+    "description": "Memory for AMPHP agents: facts with versions and provenance, recall by keys and HRR vectors, proposals the owner decides, a core layer and nightly consolidation, on PostgreSQL",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["amphp", "memory", "agent", "postgresql", "hrr", "facts"],
+    "require": {
+        "php": ">=8.2",
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "amphp/amp": "^3",
+        "amphp/postgres": "^2.2",
+        "wamania/php-stemmer": "^4.0"
+    },
+    "require-dev": {
+        "amphp/phpunit-util": "^3",
+        "phpstan/phpstan": "^2",
+        "phpunit/phpunit": "^9.6",
+        "psalm/plugin-phpunit": "^0.22.2",
+        "vimeo/psalm": "^6"
+    },
+    "autoload": {
+        "psr-4": {
+            "Mercurius\\Memory\\": "src/"
+        },
+        "files": [
+            "src/functions.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Mercurius\\Memory\\Test\\": "test/"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "platform": {
+            "php": "8.2.27"
+        },
+        "allow-plugins": {}
+    },
+    "scripts": {
+        "test": "php -d zend.assertions=1 -d assert.exception=1 vendor/bin/phpunit",
+        "phpstan": "phpstan analyse --no-progress --memory-limit=1G",
+        "psalm": "psalm --no-progress --show-info=false",
+        "check": [
+            "@test",
+            "@phpstan",
+            "@psalm"
+        ]
+    }
+}
