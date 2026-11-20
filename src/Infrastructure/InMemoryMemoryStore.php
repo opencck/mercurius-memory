@@ -41,10 +41,19 @@ final class InMemoryMemoryStore implements MemoryStore {
         $found = [];
         foreach ($factIds as $id) {
             if (isset($this->facts[$id])) {
-                $found[$id] = Hrr::dot(Hrr::phasor(Hrr::fact($this->facts[$id]->keys)), $phasor);
+                $found[$id] = Hrr::dot($this->phasorOf($this->facts[$id]), $phasor);
             }
         }
         return $found;
+    }
+
+    /** @var array<string, list<float>> the phasor of a fact by its keys: encoding is the slow part of a search here */
+    private array $phasors = [];
+
+    /** @return list<float> */
+    private function phasorOf(Fact $fact): array {
+        $key = implode("", $fact->keys);
+        return $this->phasors[$key] ??= Hrr::phasor(Hrr::fact($fact->keys));
     }
 
     public function related(array $scopes, array $probes, float $threshold, int $limit): array {
@@ -53,7 +62,7 @@ final class InMemoryMemoryStore implements MemoryStore {
             if (!$fact->active || !in_array($fact->scope, $scopes, true) || $probes === []) {
                 continue;
             }
-            $phasor = Hrr::phasor(Hrr::fact($fact->keys));
+            $phasor = $this->phasorOf($fact);
             $sim = max(array_map(static fn(array $probe): float => Hrr::dot($phasor, $probe), $probes));
             if ($sim >= $threshold) {
                 $scored[] = [$sim, $fact];
