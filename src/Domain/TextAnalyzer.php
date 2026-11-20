@@ -32,7 +32,41 @@ final class TextAnalyzer {
         'the', 'a', 'an', 'and', 'or', 'but', 'is', 'are', 'was', 'were', 'be', 'been', 'it', 'its', 'this', 'that', 'to',
         'of', 'in', 'on', 'at', 'for', 'with', 'as', 'by', 'from', 'so', 'do', 'does', 'did', 'not', 'no', 'yes', 'ok',
         'i', 'you', 'he', 'she', 'we', 'they', 'me', 'my', 'your', 'our', 'their', 'what', 'which', 'who', 'please', 'thanks',
+        // ref: references/hermes-plugin-holographic/text.py@4a794f8:L204-L218 (STOP en, ru) — the words of its lists
+        //      this one lacked: an unknown word of a question counts against coverage, so "when", "how", "have" kept
+        //      facts out
+        'about', 'above', 'after', 'again', 'all', 'am', 'any', 'because', 'before', 'being', 'between', 'both',
+        'can', 'could', 'doing', 'don', 'down', 'during', 'each', 'few', 'further', 'had', 'has', 'have', 'having',
+        'her', 'here', 'hers', 'herself', 'him', 'himself', 'his', 'how', 'if', 'into', 'itself', 'just', 'more',
+        'most', 'myself', 'nor', 'now', 'off', 'once', 'only', 'other', 'ours', 'ourselves', 'out', 'over', 'own',
+        'same', 'should', 'some', 'such', 'than', 'theirs', 'them', 'themselves', 'then', 'there', 'these', 'those',
+        'through', 'too', 'under', 'until', 'up', 'very', 'when', 'where', 'while', 'whom', 'why', 'will', 'would',
+        'yours', 'yourself', 'yourselves', 'okay', 'yeah', 'thank', 'hi', 'hello', 'hey',
+        'весь', 'её', 'ко', 'либо', 'наш', 'неё', 'однако', 'оно', 'очень', 'также', 'те', 'тебе', 'той', 'хотя',
+        'чей', 'чье', 'чья', 'эта', 'ладно', 'понял', 'поняла', 'давай', 'просто', 'вообще', 'кстати', 'понятно',
+        'ясно', 'кого', 'кому', 'чему', 'вон', 'чём', 'всё', 'моё', 'твоё', 'своё', 'нём',
     ];
+
+    /**
+     * Question words that say nothing about the subject of a question but are part of a statement: left out of the
+     * words of a question only, never out of a fact's keys.
+     *
+     * ref: references/hermes-plugin-holographic/text.py@4a794f8:L322-L326 (QUERY_ONLY_STOP)
+     */
+    private const QUESTION_ONLY = [
+        'какой', 'какая', 'какое', 'какие', 'какого', 'какому', 'каким', 'каком', 'какую', 'каких', 'какими',
+        'каков', 'который', 'которая', 'которое', 'которые', 'которого', 'которой', 'которому', 'которым', 'котором',
+        'которую', 'которых', 'сколько', 'куда', 'откуда', 'почему', 'зачем',
+    ];
+
+    /** Latin letters with marks and their plain forms: «café» is «cafe» (the image has no intl for Normalizer). */
+    private const LATIN_MARKS = [
+        'àáâãäåāăą' => 'a', 'çćĉċč' => 'c', 'ďđ' => 'd', 'èéêëēĕėęě' => 'e', 'ĝğġģ' => 'g', 'ĥħ' => 'h', 'ìíîïĩīĭįı' => 'i',
+        'ĵ' => 'j', 'ķ' => 'k', 'ĺļľŀł' => 'l', 'ñńņňŉ' => 'n', 'òóôõöøōŏő' => 'o', 'ŕŗř' => 'r', 'śŝşšș' => 's',
+        'ţťŧț' => 't', 'ùúûüũūŭůűų' => 'u', 'ŵ' => 'w', 'ýÿŷ' => 'y', 'źżž' => 'z', 'ß' => 'ss', 'æ' => 'ae', 'œ' => 'oe',
+    ];
+    /** @var array<string, string>|null */
+    private static ?array $marks = null;
 
     /**
      * A borrowed word written either way, Latin or Cyrillic: each group is one word. A word belongs to a group by its
@@ -105,19 +139,28 @@ final class TextAnalyzer {
      *
      * spec: brief/memory.md#анализ-текста — a word is counted once: «бэкап» and its group key are one word
      *
+     * @param bool $question the text is a question: its question-only words are left out
      * @return list<non-empty-list<string>> in the order they appear; a word met again is not repeated
      */
-    public function terms(string $text): array {
-        $text = str_replace(['ё', 'Ё'], ['е', 'Е'], $text);
+    public function terms(string $text, bool $question = false): array {
+        $text = self::prepare($text);
         preg_match_all('~/[\w.\-/]+|[\p{L}\p{N}_]+(?:[.\-][\p{L}\p{N}_]+)*~u', $text, $m);
         /** @var list<non-empty-list<string>> $terms */
         $terms = [];
         $seen = [];
         foreach ($m[0] as $token) {
             $word = mb_strtolower($token);
-            if (isset($this->stop[$word]) || mb_strlen($word) < 2) {
+            // spec: brief/memory.md#китайский-язык — a run of Chinese characters is its words and pairs
+            if (preg_match('~^\p{Han}+$~u', $word) === 1) {
+                foreach (Chinese::terms($word) as $term) {
+                    self::addTerm($terms, $seen, $term);
+                }
                 continue;
             }
+            if (isset($this->stop[$word]) || (mb_strlen($word) < 2 && !ctype_digit($word)) || ($question && in_array($word, self::QUESTION_ONLY, true))) {
+                continue;
+            }
+            $word = self::plain($word);
             $term = [];
             $key = self::isIdentifier($word) || preg_match('~\d~', $word) === 1 ? $word : $this->stem($word);
             if ($key !== '' && !isset($this->stop[$key])) {
@@ -174,13 +217,55 @@ final class TextAnalyzer {
                 }
             }
         }
+        if (Chinese::hasHan($text)) {
+            preg_match_all('~[' . Chinese::NEGATORS . '](\p{Han}{1,4})~u', Chinese::fold($text), $zh);
+            foreach ($zh[1] as $after) {
+                $first = Chinese::terms($after)[0] ?? [];
+                foreach ($first as $key) {
+                    $keys[$key] = true;
+                }
+            }
+        }
         return array_map(strval(...), array_keys($keys));
     }
 
     /** Whether a text has a negation at all. */
     public static function negates(string $text): bool {
         preg_match_all('~\p{L}+~u', mb_strtolower(str_replace(['ё', 'Ё'], ['е', 'Е'], $text)), $m);
-        return array_intersect($m[0], self::NEGATIONS) !== [];
+        if (array_intersect($m[0], self::NEGATIONS) !== []) {
+            return true;
+        }
+        // spec: brief/memory.md#китайский-язык — 不, 没, 未, 别, 无, 非 before a word
+        return Chinese::hasHan($text) && preg_match('~[' . Chinese::NEGATORS . ']\p{Han}~u', Chinese::fold($text)) === 1;
+    }
+
+    /** A Latin word without marks: «café» — «cafe», «Straße» — «strasse». */
+    private static function plain(string $word): string {
+        if (preg_match('~[^\x00-\x7F]~', $word) !== 1 || preg_match('~^[\p{Latin}\d._-]+$~u', $word) !== 1) {
+            return $word;
+        }
+        if (self::$marks === null) {
+            self::$marks = [];
+            foreach (self::LATIN_MARKS as $from => $to) {
+                foreach (mb_str_split($from) as $char) {
+                    self::$marks[$char] = $to;
+                }
+            }
+        }
+        return strtr($word, self::$marks);
+    }
+
+    /**
+     * The text as it is analysed: «ё» as «е»; Chinese folded to Simplified with numbers in digits, and its runs of
+     * characters set apart from Latin and digits next to them («用keyring保存» is «用», «keyring», «保存»).
+     */
+    private static function prepare(string $text): string {
+        $text = str_replace(['ё', 'Ё'], ['е', 'Е'], $text);
+        if (!Chinese::hasHan($text)) {
+            return $text;
+        }
+        $text = Chinese::numbers(Chinese::fold($text));
+        return (string) preg_replace('~(?<=\p{Han})(?=[^\p{Han}\s])|(?<=[^\p{Han}\s])(?=\p{Han})~u', ' ', $text);
     }
 
     /**

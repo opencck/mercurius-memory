@@ -21,7 +21,7 @@ Part of [Mercurius](https://github.com/opencck/mercurius) — an autonomous pers
 | `src/Infrastructure/` | `PostgresMemoryStore`, `PostgresConsolidationJournal`; `InMemoryMemoryStore` and `InMemoryConsolidationJournal` for tests and small uses |
 | `src/Testing/MemoryStoreContract.php` | One contract test for every `MemoryStore`: extend it with your store |
 | `migrations/` | The SQL of the memory's tables; `Migrations::directory()` gives the folder |
-| `resources/` | English texts; the dictionary of Russian words of one root (DerivBase.Ru, Apache 2.0) |
+| `resources/` | English texts; dictionaries: Russian words of one root (DerivBase.Ru, Apache 2.0), Traditional to Simplified Chinese characters (OpenCC, Apache 2.0), Chinese words (jieba, MIT) |
 
 ## Use
 
@@ -46,4 +46,4 @@ application against a real database (`MemoryStoreContract`).
 
 ## License
 
-[MIT](LICENSE). The dictionary in `resources/dictionaries/` is under Apache 2.0, see its licence file.
+[MIT](LICENSE). The dictionaries in `resources/dictionaries/` are under their own licences (Apache 2.0, MIT), the licence files lie beside them.

@@ -21,7 +21,7 @@
 | `src/Infrastructure/` | `PostgresMemoryStore`, `PostgresConsolidationJournal`; `InMemoryMemoryStore` и `InMemoryConsolidationJournal` — для тестов и простых случаев |
 | `src/Testing/MemoryStoreContract.php` | Один контрактный тест для любого `MemoryStore`: унаследуйте его своим хранилищем |
 | `migrations/` | SQL таблиц памяти; каталог — `Migrations::directory()` |
-| `resources/` | Тексты на английском; словарь однокоренных русских слов (DerivBase.Ru, Apache 2.0) |
+| `resources/` | Тексты на английском; словари: однокоренные русские слова (DerivBase.Ru, Apache 2.0), традиционные иероглифы в упрощённые (OpenCC, Apache 2.0), китайские слова (jieba, MIT) |
 
 ## Использование
 
@@ -46,4 +46,4 @@ $fact = $store->addFact('owner', 'knowledge', 'Владелец пьёт чай 
 
 ## Лицензия
 
-[MIT](LICENSE). Словарь в `resources/dictionaries/` — под Apache 2.0, см. файл лицензии рядом с ним.
+[MIT](LICENSE). Словари в `resources/dictionaries/` — под своими лицензиями (Apache 2.0, MIT), файлы лицензий лежат рядом с ними.

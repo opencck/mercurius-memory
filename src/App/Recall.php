@@ -175,7 +175,7 @@ final class Recall {
      * @return list<Fact>
      */
     private function byWords(string $message, array $scopes, array $given, int $budget): array {
-        $terms = $this->analyzer->terms($message);
+        $terms = $this->analyzer->terms($message, true);
         if ($terms === []) {
             return [];
         }
