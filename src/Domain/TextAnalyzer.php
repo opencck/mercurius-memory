@@ -69,23 +69,15 @@ final class TextAnalyzer {
     private static ?array $marks = null;
 
     /**
-     * A borrowed word written either way, Latin or Cyrillic: each group is one word. A word belongs to a group by its
-     * exact form — the spelling, an English plural, a Russian case ending — never by its stem: Snowball cuts «токен» to
-     * «ток» and «виза» to «виз».
+     * A word written in several spellings and languages, each group one word (loanwords.txt beside the dictionaries):
+     * «бэкап», «backup», «备份». A word belongs to a group by its exact form — the spelling, an English plural, a Russian
+     * case ending — never by its stem: Snowball cuts «токен» to «ток» and «виза» to «виз».
      *
-     * spec: brief/memory.md#анализ-текста — loanwords
+     * spec: brief/memory.md#словари — loanwords
      * ref: references/hermes-plugin-holographic/text.py@4a794f8:L670-L719 (_LOANWORDS, _RU_ENDINGS, _loan_forms) — the
      *      table and the forms; holographic also keeps search prefixes for FTS5, here the group's key is enough
      */
-    private const LOANWORDS = 'telegram телеграм телеграмм | whatsapp вотсап вотсапп ватсап ватсапп вацап | youtube ютуб'
-        . ' | instagram инстаграм инстаграмм | facebook фейсбук | google гугл | gmail гмейл | iphone айфон | ipad айпад'
-        . ' | android андроид | windows виндовс | linux линукс | macbook макбук | backup бэкап бекап | server сервер | vpn впн'
-        . ' | wifi вайфай | bluetooth блютуз | email имейл емейл эмейл | zoom зум | skype скайп | excel эксель | notion ношн'
-        . ' | github гитхаб | docker докер | python питон | deploy деплой | commit коммит | token токен | prompt промпт'
-        . ' | chatgpt чатгпт | dashboard дашборд | bitcoin биткоин биткойн | hotel отель | condo кондо | visa виза'
-        . ' | netflix нетфликс | spotify спотифай | tiktok тикток | twitter твиттер | samsung самсунг | xiaomi сяоми'
-        . ' | booking букинг | laptop лэптоп ноутбук | smartphone смартфон | router роутер | chat чат | online онлайн | site сайт'
-        . ' | bot бот | marketplace маркетплейс | startup стартап | meetup митап | coworking коворкинг | freelance фриланс';
+    private const LOANWORDS = __DIR__ . '/../../resources/dictionaries/loanwords.txt';
     private const RU_ENDINGS = ['а', 'я', 'у', 'ю', 'е', 'и', 'ы', 'ой', 'ей', 'ою', 'ею', 'ом', 'ем', 'ам', 'ям', 'ами', 'ями', 'ах', 'ях', 'ов', 'ев'];
 
     /** @var array<string, string>|null form => the key of its group */
@@ -96,6 +88,9 @@ final class TextAnalyzer {
 
     /** @var array<string, list<string>>|null stem => stems linked to it by a derivation */
     private static ?array $derivation = null;
+
+    /** @var array<string, string> a key of a word of the owner's table => the key of its group */
+    private array $aliases = [];
 
     /**
      * Words that negate the word after them (a modal passes it on: «не может прийти»).
@@ -153,7 +148,8 @@ final class TextAnalyzer {
             // spec: brief/memory.md#китайский-язык — a run of Chinese characters is its words and pairs
             if (preg_match('~^\p{Han}+$~u', $word) === 1) {
                 foreach (Chinese::terms($word) as $term) {
-                    self::addTerm($terms, $seen, $term);
+                    $loan = self::loans()[$term[0]] ?? null;
+                    self::addTerm($terms, $seen, $this->aliased($loan === null ? $term : [...$term, $loan]));
                 }
                 continue;
             }
@@ -170,7 +166,7 @@ final class TextAnalyzer {
             if ($loan !== null) {
                 $term[] = $loan;
             }
-            self::addTerm($terms, $seen, $term);
+            self::addTerm($terms, $seen, $this->aliased($term));
             // A hyphenated word ("vpn-сервер", "telegram-бот") is also its parts: the question says "VPN" or "бот".
             if (str_contains($word, '-') && !self::isIdentifier($word)) {
                 foreach (explode('-', $word) as $part) {
@@ -286,7 +282,8 @@ final class TextAnalyzer {
      *
      * spec: brief/memory.md#анализ-текста — same-root words
      * ref: references/hermes-plugin-holographic/text.py@4a794f8:L832-L912 (word_roots, _related) — the DerivBase.Ru
-     *      pairs as an adjacency map loaded on the first Russian word; English (Open English Wordnet) is not taken
+     *      pairs as an adjacency map loaded on the first Russian word; English (Open English Wordnet) was measured
+     *      and not taken: no question of the English set changed
      *
      * @return list<string>
      */
@@ -324,6 +321,38 @@ final class TextAnalyzer {
     }
 
     /**
+     * The owner's table of words that mean one thing («прокс» — «proxmox»): each group is matched by the keys of its
+     * words, as written by the analyzer, and gives the key "alias:<group>". A change of the table keys facts again.
+     *
+     * spec: brief/memory.md#словари — the owner's table
+     *
+     * @param array<int|string, list<string>> $groups the words of each group, by its id
+     */
+    public function useAliases(array $groups): void {
+        $this->aliases = [];
+        foreach ($groups as $id => $words) {
+            foreach ($words as $word) {
+                foreach ($this->terms($word) as $term) {
+                    $this->aliases[$term[0]] = 'alias:' . $id;
+                }
+            }
+        }
+    }
+
+    /**
+     * @param list<string> $term
+     * @return list<string>
+     */
+    private function aliased(array $term): array {
+        foreach ($term as $key) {
+            if (isset($this->aliases[$key])) {
+                return [...$term, $this->aliases[$key]];
+            }
+        }
+        return $term;
+    }
+
+    /**
      * @param list<non-empty-list<string>> $terms
      * @param array<string, true> $seen
      * @param list<string> $term
@@ -345,8 +374,12 @@ final class TextAnalyzer {
             return self::$loans;
         }
         $table = [];
-        foreach (explode('|', self::LOANWORDS) as $group) {
-            $spellings = preg_split('/\s+/', trim($group), -1, PREG_SPLIT_NO_EMPTY);
+        $lines = is_file(self::LOANWORDS) ? file(self::LOANWORDS, FILE_IGNORE_NEW_LINES) : false;
+        foreach ($lines === false ? [] : $lines as $group) {
+            if ($group === '' || $group[0] === '#') {
+                continue;
+            }
+            $spellings = preg_split('/\s+/', trim(str_replace(['ё', 'Ё'], ['е', 'Е'], $group)), -1, PREG_SPLIT_NO_EMPTY);
             if ($spellings === false || $spellings === []) {
                 continue;
             }
@@ -362,6 +395,9 @@ final class TextAnalyzer {
 
     /** @return list<string> the forms that make a word a spelling of its group */
     private static function forms(string $spelling): array {
+        if (Chinese::hasHan($spelling)) {
+            return [$spelling];
+        }
         if (preg_match('~\p{Cyrillic}~u', $spelling) !== 1) {
             return [$spelling, $spelling . (preg_match('/(s|x|z|ch|sh)$/', $spelling) === 1 ? 'es' : 's')];
         }

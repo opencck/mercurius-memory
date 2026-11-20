@@ -17,11 +17,11 @@
 | Путь | Что там |
 |------|---------|
 | `src/Domain/` | `Fact`, `Proposal`, `MemoryStore` (узкий интерфейс хранилища), `TextAnalyzer` (ключи текста), `Hrr`, `ContentScreen` (что не может стать фактом) |
-| `src/App/` | `Recall`, `Proposals`, `CoreEntries`, `Consolidation`, `Corroboration`, `MemoryContext`, `Audience` |
-| `src/Infrastructure/` | `PostgresMemoryStore`, `PostgresConsolidationJournal`; `InMemoryMemoryStore` и `InMemoryConsolidationJournal` — для тестов и простых случаев |
+| `src/App/` | `Recall`, `Proposals`, `CoreEntries`, `Consolidation`, `Corroboration`, `MemoryContext`, `Audience`, `Aliases` (таблица соответствий слов владельца) |
+| `src/Infrastructure/` | `PostgresMemoryStore`, `PostgresConsolidationJournal`, `PostgresAliasStore`; `InMemoryMemoryStore`, `InMemoryConsolidationJournal` и `InMemoryAliasStore` — для тестов и простых случаев |
 | `src/Testing/MemoryStoreContract.php` | Один контрактный тест для любого `MemoryStore`: унаследуйте его своим хранилищем |
 | `migrations/` | SQL таблиц памяти; каталог — `Migrations::directory()` |
-| `resources/` | Тексты на английском; словари: однокоренные русские слова (DerivBase.Ru, Apache 2.0), традиционные иероглифы в упрощённые (OpenCC, Apache 2.0), китайские слова (jieba, MIT) |
+| `resources/` | Тексты на английском; словари: однокоренные русские слова (DerivBase.Ru, Apache 2.0), традиционные иероглифы в упрощённые (OpenCC, Apache 2.0), китайские слова (jieba, MIT), заимствования на трёх языках |
 
 ## Использование
 

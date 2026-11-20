@@ -1,0 +1,112 @@
+# Words that are one word in several spellings and languages: one group per line, spellings separated by spaces,
+# the first one names the group (its key is "loan:<first>"). A word belongs to a group by its exact form — the
+# spelling, an English plural, a Russian case ending — never by its stem; a Chinese spelling is a word of the
+# dictionary as written (Simplified). Spellings are single words.
+# The first 55 groups are holographic's _LOANWORDS (references/hermes-plugin-holographic/text.py@4a794f8:L670-L719);
+# the rest and the Chinese spellings were added for Mercurius (2026-11-21), written by a model: borrowed and
+# technical words only. Everyday translations (жена — wife — 妻子) are not here: they bridge languages, which the
+# owner leaves to the night's translated keywords, off by default.
+telegram телеграм телеграмм 电报
+whatsapp вотсап вотсапп ватсап ватсапп вацап
+youtube ютуб ютюб 油管
+instagram инстаграм инстаграмм инста
+facebook фейсбук
+google гугл 谷歌
+gmail гмейл
+iphone айфон
+ipad айпад
+android андроид 安卓
+windows виндовс винда
+linux линукс
+macbook макбук
+backup бэкап бекап 备份
+server сервер 服务器 伺服器
+vpn впн
+wifi вайфай 无线网
+bluetooth блютуз 蓝牙
+email имейл емейл эмейл почта 邮件 邮箱 电子邮件
+zoom зум
+skype скайп
+excel эксель
+notion ношн
+github гитхаб
+docker докер
+python питон
+deploy деплой
+commit коммит
+token токен
+prompt промпт 提示词
+chatgpt чатгпт
+dashboard дашборд 仪表盘
+bitcoin биткоин биткойн 比特币
+hotel отель
+condo кондо
+visa виза 签证
+netflix нетфликс
+spotify спотифай
+tiktok тикток 抖音
+twitter твиттер
+samsung самсунг 三星
+xiaomi сяоми 小米
+booking букинг
+laptop лэптоп ноутбук 笔记本电脑
+smartphone смартфон 智能手机
+router роутер маршрутизатор 路由器
+chat чат 聊天
+online онлайн 在线
+site сайт вебсайт 网站
+bot бот 机器人
+marketplace маркетплейс
+startup стартап
+meetup митап
+coworking коворкинг
+freelance фриланс фрилансер
+gitlab гитлаб
+kubernetes кубернетес кубер k8s
+ansible ансибл
+nginx нжинкс энджинкс нгинкс
+proxmox проксмокс
+grafana графана
+prometheus прометеус прометей
+postgres постгрес postgresql
+mysql мускул майскуль
+redis редис
+cloudflare клаудфлер клаудфлэр
+hetzner хетцнер
+wordpress вордпресс
+bitrix битрикс
+joomla джумла
+laravel ларавел ларавель
+figma фигма
+slack слак слэк
+jira джира
+trello трелло
+discord дискорд
+outlook аутлук
+dropbox дропбокс
+icloud айклауд
+airbnb эйрбнб
+uber убер
+grab граб
+paypal пэйпал пейпал
+stripe страйп
+api апи 接口
+ssh ссш
+ssl ссл
+dns днс
+cdn сдн
+domain домен 域名
+hosting хостинг 主机
+database 数据库
+cache кэш кеш 缓存
+password пароль 密码
+login логин 登录
+account аккаунт учётка учетка 账号 账户
+update апдейт обновление 更新
+bug баг 漏洞
+feature фича
+release релиз 发布
+script скрипт 脚本
+cron крон
+container контейнер 容器
+cluster кластер 集群

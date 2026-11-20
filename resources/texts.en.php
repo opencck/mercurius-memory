@@ -1,6 +1,15 @@
 <?php
 
 return array (
+  'app.aliases.added' => 'Group #%d: %s — these words are one word in memory search now.',
+  'app.aliases.already' => 'Group #%d already holds these words: %s.',
+  'app.aliases.few' => 'A group needs at least two different words.',
+  'app.aliases.full' => 'The table holds %d groups at most: remove one first.',
+  'app.aliases.many' => 'A group holds %d words at most.',
+  'app.aliases.none' => 'The table of words that mean one thing is empty.',
+  'app.aliases.not_found' => 'There is no group #%d.',
+  'app.aliases.removed' => 'Group #%d removed; memory search no longer joins its words.',
+  'app.aliases.short' => '«%s» is too short: a word of one or two letters means too many things.',
   'app.consolidation.davno_ne_prigozhdalis_nuzhny_li' => 'Haven\'t been useful for a long time — are they still needed (if not, /forget <number>):
 ',
   'app.consolidation.fakt_povtoryaet_predlozhil_zabyt_kartoch' => 'Fact #%d repeats #%d — proposed forgetting #%d (card #%d).',

@@ -17,11 +17,11 @@ Part of [Mercurius](https://github.com/opencck/mercurius) — an autonomous pers
 | Path | Contents |
 |------|----------|
 | `src/Domain/` | `Fact`, `Proposal`, `MemoryStore` (the narrow interface of storage), `TextAnalyzer` (keys of a text), `Hrr`, `ContentScreen` (what may not become a fact) |
-| `src/App/` | `Recall`, `Proposals`, `CoreEntries`, `Consolidation`, `Corroboration`, `MemoryContext`, `Audience` |
-| `src/Infrastructure/` | `PostgresMemoryStore`, `PostgresConsolidationJournal`; `InMemoryMemoryStore` and `InMemoryConsolidationJournal` for tests and small uses |
+| `src/App/` | `Recall`, `Proposals`, `CoreEntries`, `Consolidation`, `Corroboration`, `MemoryContext`, `Audience`, `Aliases` (the owner's table of words that mean one thing) |
+| `src/Infrastructure/` | `PostgresMemoryStore`, `PostgresConsolidationJournal`, `PostgresAliasStore`; `InMemoryMemoryStore`, `InMemoryConsolidationJournal` and `InMemoryAliasStore` for tests and small uses |
 | `src/Testing/MemoryStoreContract.php` | One contract test for every `MemoryStore`: extend it with your store |
 | `migrations/` | The SQL of the memory's tables; `Migrations::directory()` gives the folder |
-| `resources/` | English texts; dictionaries: Russian words of one root (DerivBase.Ru, Apache 2.0), Traditional to Simplified Chinese characters (OpenCC, Apache 2.0), Chinese words (jieba, MIT) |
+| `resources/` | English texts; dictionaries: Russian words of one root (DerivBase.Ru, Apache 2.0), Traditional to Simplified Chinese characters (OpenCC, Apache 2.0), Chinese words (jieba, MIT), borrowed words in three languages |
 
 ## Use
 
