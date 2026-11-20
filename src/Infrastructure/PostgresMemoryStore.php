@@ -148,14 +148,16 @@ final class PostgresMemoryStore implements MemoryStore {
         return '[' . implode(',', array_map(static fn(float $v): string => sprintf('%.7F', $v), $values)) . ']';
     }
 
-    public function candidates(array $scopes, array $keys, int $limit): array {
+    public function candidates(array $scopes, array $keys, int $limit, array $weights = []): array {
         if ($scopes === [] || $keys === []) {
             return [];
         }
+        $keys = array_values(array_unique($keys));
         $facts = [];
         foreach ($this->db->execute(
-            "SELECT " . self::FACT . " FROM facts WHERE status = 'active' AND scope = ANY(?::text[]) AND keys && ?::text[] ORDER BY updated_at DESC LIMIT ?",
-            [$scopes, $keys, $limit],
+            "SELECT " . self::FACT . ", (SELECT coalesce(sum(w.weight), 0) FROM unnest(?::text[], ?::float8[]) AS w(key, weight) WHERE w.key = ANY(facts.keys)) AS score
+             FROM facts WHERE status = 'active' AND scope = ANY(?::text[]) AND keys && ?::text[] ORDER BY score DESC, updated_at DESC, id DESC LIMIT ?",
+            [$keys, array_map(static fn(string $k): float => $weights[$k] ?? 1.0, $keys), $scopes, $keys, $limit],
         ) as $row) {
             $facts[] = self::fact_($row);
         }

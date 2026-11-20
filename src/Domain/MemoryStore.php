@@ -65,13 +65,18 @@ interface MemoryStore {
     public function rekey(\Closure $keys): int;
 
     /**
-     * Active facts of the scopes sharing at least one key, newest first.
+     * Active facts of the scopes sharing at least one key: the greatest sum of the weights of the keys they hold first,
+     * then the newest. Without weights every key weighs one.
+     *
+     * spec: brief/memory.md#анализ-текста — candidates by what they match, not by age: an old fact of a frequent word is
+     *       not pushed out of the window by newer ones
      *
      * @param list<string> $scopes
      * @param list<string> $keys
+     * @param array<string, float> $weights the weight of a key, by key
      * @return list<Fact>
      */
-    public function candidates(array $scopes, array $keys, int $limit): array;
+    public function candidates(array $scopes, array $keys, int $limit, array $weights = []): array;
 
     /**
      * How many active facts of the scopes hold each key, and how many there are in all (key "").

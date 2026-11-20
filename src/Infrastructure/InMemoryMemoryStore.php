@@ -94,13 +94,23 @@ final class InMemoryMemoryStore implements MemoryStore {
         return 0;
     }
 
-    public function candidates(array $scopes, array $keys, int $limit): array {
-        $found = array_filter(
-            $this->facts,
-            static fn(Fact $f): bool => $f->active && in_array($f->scope, $scopes, true) && array_intersect($f->keys, $keys) !== [],
+    public function candidates(array $scopes, array $keys, int $limit, array $weights = []): array {
+        $scored = [];
+        foreach ($this->facts as $f) {
+            $shared = $f->active && in_array($f->scope, $scopes, true) ? array_intersect($keys, $f->keys) : [];
+            if ($shared !== []) {
+                $scored[] = [array_sum(array_map(static fn(string $k): float => $weights[$k] ?? 1.0, array_unique($shared))), $f];
+            }
+        }
+        usort(
+            $scored,
+            /**
+             * @param array{float, Fact} $a
+             * @param array{float, Fact} $b
+             */
+            static fn(array $a, array $b): int => [$b[0], $b[1]->id] <=> [$a[0], $a[1]->id],
         );
-        krsort($found);
-        return array_slice(array_values($found), 0, $limit);
+        return array_slice(array_map(static fn(array $pair): Fact => $pair[1], $scored), 0, $limit);
     }
 
     public function frequencies(array $scopes, array $keys): array {

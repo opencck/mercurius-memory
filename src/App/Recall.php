@@ -198,7 +198,8 @@ final class Recall {
         $knownRoots = array_map(strval(...), array_keys($rootWeights));
         /** @var list<array{Fact, float, float}> $passed fact, its coverage score, its age factor */
         $passed = [];
-        foreach ($this->store->candidates($scopes, [...$known, ...$knownRoots], self::CANDIDATES) as $fact) {
+        // spec: brief/memory.md#анализ-текста — the candidates are the facts that match the most, weighed as the coverage is
+        foreach ($this->store->candidates($scopes, [...$known, ...$knownRoots], self::CANDIDATES, $weights + $rootWeights) as $fact) {
             if (isset($given[$fact->id]) || $fact->trust < self::MIN_TRUST - 1e-9) {
                 continue;
             }

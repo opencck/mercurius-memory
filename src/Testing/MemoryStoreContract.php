@@ -36,6 +36,19 @@ abstract class MemoryStoreContract extends AsyncTestCase {
         self::assertSame(1, $found[0]->version);
     }
 
+    public function testCandidatesAreTheFactsThatMatchMostNotTheNewest(): void {
+        $old = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'Сервер pve-01 стоит в Хельсинки', ['сервер', 'pve-01', 'хельсинк'], 0.8, Fact::OWNER_SAID, null);
+        for ($i = 0; $i < 5; $i++) {
+            $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'Сервер номер ' . $i, ['сервер', 'номер', (string) $i], 0.8, Fact::OWNER_SAID, null);
+        }
+
+        $found = $this->store->candidates([$this->scope], ['сервер', 'хельсинк'], 3, ['сервер' => 0.2, 'хельсинк' => 1.8]);
+
+        self::assertCount(3, $found);
+        self::assertSame($old->id, $found[0]->id, 'the old fact of a frequent word is first: it holds the rare one');
+        self::assertSame($old->id, $this->store->candidates([$this->scope], ['сервер', 'хельсинк'], 1)[0]->id, 'without weights each key weighs one');
+    }
+
     public function testVectorsFollowTheKeys(): void {
         $server = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'Сервер pve-01 в Хельсинки', ['сервер', 'pve-01', 'хельсинк'], 0.8, Fact::OWNER_SAID, null);
         $coffee = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'Кофе без сахара', ['коф', 'сахар'], 0.8, Fact::OWNER_SAID, null);
