@@ -25,7 +25,7 @@ final class ProposalsTest extends TestCase {
     public function testANewFactIsWrittenByTheAgentAtOnce(): void {
         $proposal = $this->proposals->propose(Proposal::ADD, null, 'Владелец пьёт кофе без сахара', 'сказал сам', ['owner', 'chat:t:1'], 7, 3);
 
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the agent writes new facts itself, the owner corrects after
+        // spec: brief/memory.md#запись-сведения-о-людях-и-забывание — the agent writes new facts itself, the owner corrects after
         self::assertSame(Proposal::APPROVED, $proposal->status);
         self::assertSame('owner', $proposal->scope, 'a new fact goes to the first readable scope');
         $fact = $this->store->recent(['owner'], 1)[0] ?? null;
@@ -166,7 +166,7 @@ final class ProposalsTest extends TestCase {
     }
 
     public function testAFactAboutAPersonGoesOnlyToTheOwnersMemoryAndIsMarked(): void {
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — what is said about other people is kept only for the owner
+        // spec: brief/memory.md#запись-сведения-о-людях-и-забывание — what is said about other people is kept only for the owner
         $proposal = $this->proposals->propose(Proposal::ADD, null, 'У Пети аллергия на орехи', 'рассказал владелец', ['chat:t:1', 'owner'], 7, 3, true);
         self::assertSame('owner', $proposal->scope, 'not the first readable scope: the owner\'s');
         self::assertTrue($proposal->aboutPerson);

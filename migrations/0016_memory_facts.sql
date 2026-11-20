@@ -1,6 +1,6 @@
 -- Память: факты с версиями и надгробиями, предложения владельцу, слой «всегда в контексте», журнал извлечений.
 -- spec: brief/memory.md#факты
--- spec: brief/memory.md#фаза-6-по-частям
+-- spec: brief/memory.md#как-сделано-области-и-факты
 
 CREATE TABLE facts (
     id bigserial PRIMARY KEY,

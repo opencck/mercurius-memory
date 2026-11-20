@@ -19,7 +19,7 @@ use function Mercurius\Memory\t;
  * Changes to memory go through the owner: the agent proposes, the owner accepts or rejects, and only an accepted
  * proposal changes memory, with a new version. A forgotten text leaves a keyed fingerprint, so it cannot come back.
  *
- * spec: brief/memory.md#фаза-6-по-частям — new facts and edits of layer 1 are proposals to the owner
+ * spec: brief/memory.md#как-сделано-области-и-факты — new facts and edits of layer 1 are proposals to the owner
  * ref: references/hermes-plugin-holographic/history.py@4a794f8:L489-L710 (change_fact, end_fact, forget_fact) —
  *      versions and tombstones; a proposal step in front of them is ours
  * ref: references/hermes-agent/tools/memory_tool.py@e96221fa:L56 — layer limits in characters, not tokens (2200 and
@@ -71,7 +71,7 @@ final class Proposals {
         if ($readable === []) {
             throw new InvalidArgumentException(t('app.proposals.zdes_pamyat_nedostupna'));
         }
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — what is said about other people is kept only for the owner
+        // spec: brief/memory.md#запись-сведения-о-людях-и-забывание — what is said about other people is kept only for the owner
         if ($aboutPerson && !in_array(Audience::OWNER, $readable, true)) {
             throw new InvalidArgumentException(t('app.proposals.about_person_owner_only'));
         }
@@ -136,7 +136,7 @@ final class Proposals {
         if ($kind !== Proposal::ADD) {
             return $proposal;
         }
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the agent writes a new fact itself and the owner corrects
+        // spec: brief/memory.md#запись-сведения-о-людях-и-забывание — the agent writes a new fact itself and the owner corrects
         //       after; a change or a removal of a fact still waits for the owner's card
         $written = $this->decide($proposal->id, true, true);
         return $written === null ? $proposal : ($this->store->proposal($proposal->id) ?? $written->proposal);

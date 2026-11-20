@@ -7,7 +7,7 @@ namespace Mercurius\Memory\App;
 /**
  * Which memory a conversation may see: what is known is disclosed by the weakest listener.
  *
- * spec: brief/decisions.md#контекст-по-месту-и-аудитории — the owner's facts never reach a group or another participant
+ * spec: brief/participants.md#контекст-по-месту-и-аудитории — the owner's facts never reach a group or another participant
  */
 final class Audience {
     public const OWNER = 'owner';

@@ -54,7 +54,7 @@ abstract class MemoryStoreContract extends AsyncTestCase {
     }
 
     public function testFactsUnderTheTrustThresholdAreListedWeakestFirst(): void {
-        // spec: brief/memory.md#память-слои — the weekly review shows facts that fell under the threshold
+        // spec: brief/memory.md#факты — the weekly review shows facts that fell under the threshold
         $weak = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'слабый', ['слаб'], 0.1, Fact::AGENT, null);
         $weaker = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'слабее', ['слабе'], 0.05, Fact::AGENT, null);
         $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'крепкий', ['крепк'], 0.9, Fact::AGENT, null);
@@ -67,7 +67,7 @@ abstract class MemoryStoreContract extends AsyncTestCase {
     }
 
     public function testUsageCountsTheRecallsOfAFact(): void {
-        // spec: brief/memory.md#память-слои — how often a fact went into answers
+        // spec: brief/memory.md#факты — how often a fact went into answers
         $fact = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'Выдача', ['выдач'], 0.5, Fact::AGENT, null);
 
         self::assertSame(['recalled' => 0, 'helpful' => 0, 'unhelpful' => 0], $this->store->usage($fact->id));

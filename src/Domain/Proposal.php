@@ -7,7 +7,7 @@ namespace Mercurius\Memory\Domain;
 /**
  * A change to memory the agent asks the owner to approve.
  *
- * spec: brief/memory.md#фаза-6-по-частям — new facts and edits of layer 1 go through the owner
+ * spec: brief/memory.md#как-сделано-области-и-факты — new facts and edits of layer 1 go through the owner
  */
 final class Proposal {
     public const ADD = 'add';
