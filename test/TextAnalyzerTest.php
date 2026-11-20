@@ -20,7 +20,7 @@ final class TextAnalyzerTest extends TestCase {
     }
 
     public function testALoanwordMeetsItsOtherSpelling(): void {
-        // spec: brief/memory.md#анализ-текста — «впн» and «VPN», «бэкап» and «backup» are one word
+        // spec: brief/memory.md#словари — «впн» and «VPN», «бэкап» and «backup» are one word
         $analyzer = new TextAnalyzer();
 
         self::assertContains('loan:vpn', $analyzer->keys('Настрой впн на сервере'));
@@ -32,7 +32,7 @@ final class TextAnalyzerTest extends TestCase {
     }
 
     public function testAStemKnowsItsSameRootStems(): void {
-        // spec: brief/memory.md#анализ-текста — same-root words from DerivBase.Ru
+        // spec: brief/memory.md#ключи-и-однокоренные — same-root words from DerivBase.Ru
         $analyzer = new TextAnalyzer();
 
         self::assertContains('ноч', $analyzer->related('ночн'), '«ночные» and «ночь»');

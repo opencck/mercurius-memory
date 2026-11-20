@@ -13,7 +13,7 @@ use Mercurius\Memory\Domain\TextAnalyzer;
 /**
  * Facts that answer a message, not merely share a word with it.
  *
- * spec: brief/memory.md#анализ-текста — coverage of the message's informative keys weighted by IDF within the readable
+ * spec: brief/memory.md#оценка-и-отбор-фактов — coverage of the message's informative keys weighted by IDF within the readable
  *       scopes, times trust and recency; a budget in characters; a fact already given in this conversation is not
  *       repeated within the window
  * ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L964-L1060 (relevant) — IDF weights, words no fact
@@ -118,7 +118,7 @@ final class Recall {
         }
         $candidates = [];
         foreach ($names as $name) {
-            // spec: brief/memory.md#анализ-текста — a name the words already found facts of brings no more: its facts
+            // spec: brief/memory.md#оценка-и-отбор-фактов — a name the words already found facts of brings no more: its facts
             //       without shared words are noise beside an answer
             $nameKeys = $this->analyzer->keys($name);
             if ($nameKeys !== [] && array_filter($nameKeys, static fn(string $k): bool => isset($spoken[$k])) !== []) {
@@ -180,7 +180,7 @@ final class Recall {
             return [];
         }
         $keys = array_values(array_unique(array_merge(...$terms)));
-        // spec: brief/memory.md#анализ-текста — a same-root word counts ROOT_WEIGHT of an exact one and never recalls alone
+        // spec: brief/memory.md#ключи-и-однокоренные — a same-root word counts ROOT_WEIGHT of an exact one and never recalls alone
         // ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L276-L291 — the root match weighed at
         //      _DERIV_WEIGHT; here the question's stems are widened, so facts keep their keys as they are
         /** @var list<list<string>> $termRoots the same-root keys of each word */
@@ -199,7 +199,7 @@ final class Recall {
         $df = $this->store->frequencies($scopes, [...$keys, ...$roots]);
         $total = (float) max($df[''], 1);
         $idf = static fn(string $key): float => ($df[$key] ?? 0) > 0 ? log(1.0 + $total / (float) $df[$key]) : 0.0;
-        // spec: brief/memory.md#анализ-текста — a word counts once, by the best-known of its keys
+        // spec: brief/memory.md#оценка-и-отбор-фактов — a word counts once, by the best-known of its keys
         /** @var list<float> $termWeights 0 — a word no fact holds */
         $termWeights = [];
         $weights = [];
@@ -230,7 +230,7 @@ final class Recall {
         $knownRoots = array_map(strval(...), array_keys($rootWeights));
         /** @var list<array{Fact, float, float}> $passed fact, its coverage, its age factor */
         $passed = [];
-        // spec: brief/memory.md#анализ-текста — the candidates are the facts that match the most, weighed as the coverage is
+        // spec: brief/memory.md#оценка-и-отбор-фактов — the candidates are the facts that match the most, weighed as the coverage is
         foreach ($this->store->candidates($scopes, [...$known, ...$knownRoots], self::CANDIDATES, $weights + $rootWeights) as $fact) {
             if (isset($given[$fact->id]) || $fact->trust < self::MIN_TRUST - 1e-9) {
                 continue;
@@ -276,7 +276,7 @@ final class Recall {
             $age = (float) max(0, $now - $fact->updatedAt) / 86400.0;
             $passed[] = [$fact, $coverage, $fact->trust * 0.5 ** ($age / self::HALF_LIFE_DAYS)];
         }
-        // spec: brief/memory.md#анализ-текста — a fact far below the best one is not the answer, whatever let it through
+        // spec: brief/memory.md#оценка-и-отбор-фактов — a fact far below the best one is not the answer, whatever let it through
         $best = $passed === [] ? 0.0 : max(array_map(static fn(array $p): float => $p[1], $passed));
         $passed = array_values(array_filter($passed, static fn(array $p): bool => $p[1] >= self::CUT * $best - 1e-9));
         $hrr = [];
@@ -286,7 +286,7 @@ final class Recall {
         /** @var list<array{Fact, float}> $scored */
         $scored = [];
         foreach ($passed as [$fact, $relevance, $factor]) {
-            // spec: brief/memory.md#анализ-текста — HRR breaks ties: at most TIE of a score, never more than a small gap
+            // spec: brief/memory.md#оценка-и-отбор-фактов — HRR breaks ties: at most TIE of a score, never more than a small gap
             $tie = isset($hrr[$fact->id]) ? $this->hrrWeight * self::TIE * max(0.0, $hrr[$fact->id]) : 0.0;
             $scored[] = [$fact, ($relevance + $tie) * $factor];
         }

@@ -11,7 +11,7 @@ use Wamania\Snowball\StemmerFactory;
  * Keys of a text for search: stems of meaningful words (Russian and English Snowball), identifiers whole. The quality
  * of recall rests on this more than on vectors.
  *
- * spec: brief/memory.md#анализ-текста
+ * spec: brief/memory.md#ключи-и-однокоренные
  * ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L380 (_coverage_rank) — keys are word stems and
  *      identifiers; stop words carry no information
  */
@@ -132,7 +132,7 @@ final class TextAnalyzer {
      * borrowed-word group. A word counts once in coverage, however many keys it has; a hyphenated word is the whole and
      * each part as words of their own.
      *
-     * spec: brief/memory.md#анализ-текста — a word is counted once: «бэкап» and its group key are one word
+     * spec: brief/memory.md#оценка-и-отбор-фактов — a word is counted once: «бэкап» and its group key are one word
      *
      * @param bool $question the text is a question: its question-only words are left out
      * @return list<non-empty-list<string>> in the order they appear; a word met again is not repeated
@@ -280,7 +280,7 @@ final class TextAnalyzer {
      * Stems of one root with a key: Snowball makes «ночь» «ноч» but «ночные» «ночн», and the dictionary links them.
      * Recall counts a match through one at a part of an exact match and never by it alone.
      *
-     * spec: brief/memory.md#анализ-текста — same-root words
+     * spec: brief/memory.md#ключи-и-однокоренные — same-root words
      * ref: references/hermes-plugin-holographic/text.py@4a794f8:L832-L912 (word_roots, _related) — the DerivBase.Ru
      *      pairs as an adjacency map loaded on the first Russian word; English (Open English Wordnet) was measured
      *      and not taken: no question of the English set changed

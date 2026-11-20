@@ -90,7 +90,7 @@ abstract class MemoryStoreContract extends AsyncTestCase {
     }
 
     public function testFactsAreKeyedAgainWhenTheAnalyzerChanges(): void {
-        // spec: brief/memory.md#анализ-текста — facts written before a new rule of the analyzer get its keys too
+        // spec: brief/memory.md#ключи-и-однокоренные — facts written before a new rule of the analyzer get its keys too
         $fact = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'Настроен VPN', ['настро', 'vpn'], 0.5, Fact::AGENT, null);
         $keys = static fn(string $text): array => $text === 'Настроен VPN' ? ['настро', 'vpn', 'loan:vpn'] : [];
 

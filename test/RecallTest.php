@@ -55,7 +55,7 @@ final class RecallTest extends TestCase {
     }
 
     public function testASameRootWordHelpsAnotherWordFindAFactButNeverAlone(): void {
-        // spec: brief/memory.md#анализ-текста — a root match counts 0.6 of an exact one and never recalls a fact alone
+        // spec: brief/memory.md#ключи-и-однокоренные — a root match counts 0.6 of an exact one and never recalls a fact alone
         $this->add('owner', 'Работает ночью в офисе');
         $this->add('owner', 'Офис на улице Ленина');
 
@@ -64,7 +64,7 @@ final class RecallTest extends TestCase {
     }
 
     public function testALoanwordFindsAFactWrittenTheOtherWay(): void {
-        // spec: brief/memory.md#анализ-текста — a question with «впн» finds a fact that says «VPN»
+        // spec: brief/memory.md#словари — a question with «впн» finds a fact that says «VPN»
         $this->add('owner', 'На ноутбуке настроен VPN WireGuard');
 
         self::assertSame(['На ноутбуке настроен VPN WireGuard'], self::texts($this->recall->find('Что с впн?', ['owner'])));

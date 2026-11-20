@@ -58,7 +58,7 @@ interface MemoryStore {
      * Keys every active fact again where they differ from those of its text now (a new rule of the analyzer); not a
      * new version. Returns how many changed.
      *
-     * spec: brief/memory.md#анализ-текста
+     * spec: brief/memory.md#ключи-и-однокоренные
      *
      * @param \Closure(string): list<string> $keys
      */
@@ -68,7 +68,7 @@ interface MemoryStore {
      * Active facts of the scopes sharing at least one key: the greatest sum of the weights of the keys they hold first,
      * then the newest. Without weights every key weighs one.
      *
-     * spec: brief/memory.md#анализ-текста — candidates by what they match, not by age: an old fact of a frequent word is
+     * spec: brief/memory.md#оценка-и-отбор-фактов — candidates by what they match, not by age: an old fact of a frequent word is
      *       not pushed out of the window by newer ones
      *
      * @param list<string> $scopes

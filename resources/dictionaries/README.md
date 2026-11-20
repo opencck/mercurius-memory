@@ -9,5 +9,5 @@
 | `zh_words.txt.gz` | Chinese words and their frequencies, folded to Simplified: one line per first character (format in its header) | jieba's `dict.txt`, MIT ([licence](jieba-MIT.txt)), https://github.com/fxsjy/jieba; as built by hermes-plugin-holographic 4a794f8 (`dictionaries/zh_words.txt.gz`) |
 
 `ru_derivation.tsv.gz` is used by `Mercurius\Memory\Domain\TextAnalyzer::related()`: a same-root word helps recall a
-fact at 0.6 of an exact match and never recalls one alone (`brief/memory.md#анализ-текста` of the main repository).
+fact at 0.6 of an exact match and never recalls one alone (`brief/memory.md#ключи-и-однокоренные` of the main repository).
 The Chinese files are used by `Mercurius\Memory\Domain\Chinese` (`brief/memory.md#китайский-язык`).
