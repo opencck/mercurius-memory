@@ -7,7 +7,7 @@ namespace Mercurius\Memory\Domain;
 /**
  * One atomic statement the agent remembers, in its current version.
  *
- * spec: BRIEF.md#факты
+ * spec: brief/memory.md#факты
  */
 final class Fact {
     public const KNOWLEDGE = 'knowledge';

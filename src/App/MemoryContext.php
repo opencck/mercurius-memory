@@ -11,7 +11,7 @@ use function Mercurius\Memory\t;
 /**
  * What memory adds to a run: layer 1 for the system prompt and the facts that answer the message.
  *
- * spec: BRIEF.md#память-слои — layer 1 is always in context for the owner; facts come before the turn
+ * spec: brief/memory.md#память-слои — layer 1 is always in context for the owner; facts come before the turn
  * ref: references/hermes-agent/agent/turn_context.py@e96221fa:L125-L136 (compose_user_api_content) — recalled memory
  *      goes after the user's text, marked as reference data, and is kept in the message so the next turn replays the
  *      same bytes; here it is kept in the transcript
@@ -47,7 +47,7 @@ final class MemoryContext {
      * Layer 1: the profile and the summary of what is going on — the owner's, or a participant's own in their private
      * chat; '' while both are empty.
      *
-     * spec: BRIEF.md#несколько-пользователей — each user has their own layered memory
+     * spec: brief/participants.md#несколько-пользователей — each user has their own layered memory
      */
     public function core(string $scope = Audience::OWNER): string {
         $parts = [];

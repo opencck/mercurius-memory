@@ -12,7 +12,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * In how many different days a person said a fact in their own messages: code tells what holds from what was said once.
  *
- * spec: BRIEF.md#консолидация-dreaming — what the owner repeated on different days
+ * spec: brief/memory.md#консолидация-dreaming — what the owner repeated on different days
  */
 final class CorroborationTest extends TestCase {
     private const DAY = 86400;

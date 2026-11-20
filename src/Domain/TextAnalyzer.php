@@ -11,7 +11,7 @@ use Wamania\Snowball\StemmerFactory;
  * Keys of a text for search: stems of meaningful words (Russian and English Snowball), identifiers whole. The quality
  * of recall rests on this more than on vectors.
  *
- * spec: BRIEF.md#анализ-текста
+ * spec: brief/memory.md#анализ-текста
  * ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L380 (_coverage_rank) — keys are word stems and
  *      identifiers; stop words carry no information
  */
@@ -39,7 +39,7 @@ final class TextAnalyzer {
      * exact form — the spelling, an English plural, a Russian case ending — never by its stem: Snowball cuts «токен» to
      * «ток» and «виза» to «виз».
      *
-     * spec: BRIEF.md#анализ-текста — loanwords
+     * spec: brief/memory.md#анализ-текста — loanwords
      * ref: references/hermes-plugin-holographic/text.py@4a794f8:L670-L719 (_LOANWORDS, _RU_ENDINGS, _loan_forms) — the
      *      table and the forms; holographic also keeps search prefixes for FTS5, here the group's key is enough
      */
@@ -125,7 +125,7 @@ final class TextAnalyzer {
     /**
      * The keys of the words a text negates: the word after a negation, past a modal («не может прийти» — «приш»).
      *
-     * spec: BRIEF.md#консолидация-dreaming — a negation turns a fact into another one
+     * spec: brief/memory.md#консолидация-dreaming — a negation turns a fact into another one
      * ref: references/hermes-dreaming/skills/dreaming/scripts/dream.py@21878d3:L2326-L2348 (_negated) — the word after
      *      the negation; the two-way words and Chinese are not taken
      *
@@ -174,7 +174,7 @@ final class TextAnalyzer {
      * Stems of one root with a key: Snowball makes «ночь» «ноч» but «ночные» «ночн», and the dictionary links them.
      * Recall counts a match through one at a part of an exact match and never by it alone.
      *
-     * spec: BRIEF.md#анализ-текста — same-root words
+     * spec: brief/memory.md#анализ-текста — same-root words
      * ref: references/hermes-plugin-holographic/text.py@4a794f8:L832-L912 (word_roots, _related) — the DerivBase.Ru
      *      pairs as an adjacency map loaded on the first Russian word; English (Open English Wordnet) is not taken
      *

@@ -19,7 +19,7 @@ use function Mercurius\Memory\t;
  * Changes to memory go through the owner: the agent proposes, the owner accepts or rejects, and only an accepted
  * proposal changes memory, with a new version. A forgotten text leaves a keyed fingerprint, so it cannot come back.
  *
- * spec: BRIEF.md#фаза-6-по-частям — new facts and edits of layer 1 are proposals to the owner
+ * spec: brief/memory.md#фаза-6-по-частям — new facts and edits of layer 1 are proposals to the owner
  * ref: references/hermes-plugin-holographic/history.py@4a794f8:L489-L710 (change_fact, end_fact, forget_fact) —
  *      versions and tombstones; a proposal step in front of them is ours
  * ref: references/hermes-agent/tools/memory_tool.py@e96221fa:L56 — layer limits in characters, not tokens (2200 and
@@ -71,12 +71,12 @@ final class Proposals {
         if ($readable === []) {
             throw new InvalidArgumentException(t('app.proposals.zdes_pamyat_nedostupna'));
         }
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — what is said about other people is kept only for the owner
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — what is said about other people is kept only for the owner
         if ($aboutPerson && !in_array(Audience::OWNER, $readable, true)) {
             throw new InvalidArgumentException(t('app.proposals.about_person_owner_only'));
         }
         $scope = $aboutPerson ? Audience::OWNER : $readable[0];
-        // spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту — a fact of the chat's active project
+        // spec: brief/memory.md#проекты-задачи-и-отношение-участника-к-проекту — a fact of the chat's active project
         if ($project) {
             $projects = array_values(array_filter($readable, static fn(string $s): bool => str_starts_with($s, 'project:')));
             if ($projects === [] || $aboutPerson) {
@@ -112,7 +112,7 @@ final class Proposals {
                 if (!in_array(Audience::OWNER, $readable, true)) {
                     throw new InvalidArgumentException(t('app.proposals.profil_i_svodka_menyayutsya_tolko'));
                 }
-                // spec: BRIEF.md#всегда-в-контексте — one entry is added, replaced or removed; the card shows the result
+                // spec: brief/memory.md#всегда-в-контексте — one entry is added, replaced or removed; the card shows the result
                 $text = CoreEntries::apply($this->store->core(MemoryContext::section($kind, Audience::OWNER)), $edit, $oldText, $text);
                 $this->check($text, $kind === Proposal::PROFILE ? self::PROFILE_MAX : self::SUMMARY_MAX);
                 $scope = Audience::OWNER;
@@ -124,7 +124,7 @@ final class Proposals {
         if ($reason === '') {
             throw new InvalidArgumentException(t('app.proposals.nuzhna_prichina_vladelets_reshaet_po'));
         }
-        // spec: BRIEF.md#факты — the real provenance and the agent's keywords
+        // spec: brief/memory.md#факты — the real provenance and the agent's keywords
         if ($source !== '' && !isset(self::SOURCES[$source])) {
             throw new InvalidArgumentException(t('app.proposals.bad_source'));
         }
@@ -136,7 +136,7 @@ final class Proposals {
         if ($kind !== Proposal::ADD) {
             return $proposal;
         }
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the agent writes a new fact itself and the owner corrects
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the agent writes a new fact itself and the owner corrects
         //       after; a change or a removal of a fact still waits for the owner's card
         $written = $this->decide($proposal->id, true, true);
         return $written === null ? $proposal : ($this->store->proposal($proposal->id) ?? $written->proposal);

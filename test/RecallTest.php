@@ -43,7 +43,7 @@ final class RecallTest extends TestCase {
     }
 
     public function testANamedPersonBringsUpToTwoOfTheirFactsWithoutSharedWords(): void {
-        // spec: BRIEF.md#факты — up to two facts of a name the message mentions, as holographic does
+        // spec: brief/memory.md#факты — up to two facts of a name the message mentions, as holographic does
         $this->add('owner', 'Аня учится в пятом классе', 0.9);
         $this->add('owner', 'Аня ходит на плавание', 0.8);
         $this->add('owner', 'Аня любит рисовать', 0.7);
@@ -55,7 +55,7 @@ final class RecallTest extends TestCase {
     }
 
     public function testASameRootWordHelpsAnotherWordFindAFactButNeverAlone(): void {
-        // spec: BRIEF.md#анализ-текста — a root match counts 0.6 of an exact one and never recalls a fact alone
+        // spec: brief/memory.md#анализ-текста — a root match counts 0.6 of an exact one and never recalls a fact alone
         $this->add('owner', 'Работает ночью в офисе');
         $this->add('owner', 'Офис на улице Ленина');
 
@@ -64,7 +64,7 @@ final class RecallTest extends TestCase {
     }
 
     public function testALoanwordFindsAFactWrittenTheOtherWay(): void {
-        // spec: BRIEF.md#анализ-текста — a question with «впн» finds a fact that says «VPN»
+        // spec: brief/memory.md#анализ-текста — a question with «впн» finds a fact that says «VPN»
         $this->add('owner', 'На ноутбуке настроен VPN WireGuard');
 
         self::assertSame(['На ноутбуке настроен VPN WireGuard'], self::texts($this->recall->find('Что с впн?', ['owner'])));

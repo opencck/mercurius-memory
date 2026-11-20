@@ -8,7 +8,7 @@ namespace Mercurius\Memory\Domain;
  * Storage of memory: facts with versions and tombstones, proposals to the owner, the always-in-context layer and the
  * recall log. One interface: these live and change together.
  *
- * spec: BRIEF.md#факты
+ * spec: brief/memory.md#факты
  */
 interface MemoryStore {
     /** @param list<string> $keys */
@@ -19,7 +19,7 @@ interface MemoryStore {
     /**
      * HRR similarity of each listed fact to a query phasor, in [-1, 1]; facts without a vector are left out.
      *
-     * spec: BRIEF.md#hrr-с-самого-начала — a fact's vector follows its keys on every write
+     * spec: brief/memory.md#hrr-с-самого-начала — a fact's vector follows its keys on every write
      *
      * @param list<int> $factIds
      * @param list<float> $phasor
@@ -58,7 +58,7 @@ interface MemoryStore {
      * Keys every active fact again where they differ from those of its text now (a new rule of the analyzer); not a
      * new version. Returns how many changed.
      *
-     * spec: BRIEF.md#анализ-текста
+     * spec: brief/memory.md#анализ-текста
      *
      * @param \Closure(string): list<string> $keys
      */
@@ -102,7 +102,7 @@ interface MemoryStore {
     /**
      * The versions of a fact, oldest first: what it said, why it changed, who made the version.
      *
-     * spec: BRIEF.md#факты
+     * spec: brief/memory.md#факты
      *
      * @return list<array{version: int, text: string, reason: string, source: ?string}>
      */
@@ -161,7 +161,7 @@ interface MemoryStore {
     /**
      * The receipt of recall of a run: the facts it was given and their versions, in order.
      *
-     * spec: BRIEF.md#трассировка-и-метрики
+     * spec: brief/operations.md#настройки-агента
      *
      * @return list<array{fact: int, version: ?int, helpful: ?bool}>
      */
@@ -174,7 +174,7 @@ interface MemoryStore {
      * Marks whether a fact the run was given helped its answer; once per recall. False when the run was not given the
      * fact or the recall is marked already.
      *
-     * spec: BRIEF.md#память-слои
+     * spec: brief/memory.md#память-слои
      */
     public function markHelpful(int $runId, int $factId, bool $helpful): bool;
 

@@ -7,14 +7,14 @@ namespace Mercurius\Memory\App;
 /**
  * Which memory a conversation may see: what is known is disclosed by the weakest listener.
  *
- * spec: BRIEF.md#контекст-по-месту-и-аудитории — the owner's facts never reach a group or another participant
+ * spec: brief/decisions.md#контекст-по-месту-и-аудитории — the owner's facts never reach a group or another participant
  */
 final class Audience {
     public const OWNER = 'owner';
 
     /**
      * @param int|null $projectId the active project of the chat, when the participant may see it: its facts are read
-     *                            here too (spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту)
+     *                            here too (spec: brief/memory.md#проекты-задачи-и-отношение-участника-к-проекту)
      * @return list<string> scopes readable here; the first one is where new facts of this place go
      */
     public static function scopes(bool $owner, int $principalId, string $channel, string $chatId, bool $privateChat, ?int $projectId = null): array {

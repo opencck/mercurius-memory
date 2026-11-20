@@ -54,7 +54,7 @@ abstract class MemoryStoreContract extends AsyncTestCase {
     }
 
     public function testFactsUnderTheTrustThresholdAreListedWeakestFirst(): void {
-        // spec: BRIEF.md#память-слои — the weekly review shows facts that fell under the threshold
+        // spec: brief/memory.md#память-слои — the weekly review shows facts that fell under the threshold
         $weak = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'слабый', ['слаб'], 0.1, Fact::AGENT, null);
         $weaker = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'слабее', ['слабе'], 0.05, Fact::AGENT, null);
         $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'крепкий', ['крепк'], 0.9, Fact::AGENT, null);
@@ -67,7 +67,7 @@ abstract class MemoryStoreContract extends AsyncTestCase {
     }
 
     public function testUsageCountsTheRecallsOfAFact(): void {
-        // spec: BRIEF.md#память-слои — how often a fact went into answers
+        // spec: brief/memory.md#память-слои — how often a fact went into answers
         $fact = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'Выдача', ['выдач'], 0.5, Fact::AGENT, null);
 
         self::assertSame(['recalled' => 0, 'helpful' => 0, 'unhelpful' => 0], $this->store->usage($fact->id));
@@ -77,7 +77,7 @@ abstract class MemoryStoreContract extends AsyncTestCase {
     }
 
     public function testFactsAreKeyedAgainWhenTheAnalyzerChanges(): void {
-        // spec: BRIEF.md#анализ-текста — facts written before a new rule of the analyzer get its keys too
+        // spec: brief/memory.md#анализ-текста — facts written before a new rule of the analyzer get its keys too
         $fact = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'Настроен VPN', ['настро', 'vpn'], 0.5, Fact::AGENT, null);
         $keys = static fn(string $text): array => $text === 'Настроен VPN' ? ['настро', 'vpn', 'loan:vpn'] : [];
 
@@ -90,7 +90,7 @@ abstract class MemoryStoreContract extends AsyncTestCase {
     }
 
     public function testEachVersionKeepsWhoMadeIt(): void {
-        // spec: BRIEF.md#факты — the source of a version
+        // spec: brief/memory.md#факты — the source of a version
         $fact = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'было', ['было'], 0.5, Fact::OWNER_SAID, null);
         $this->store->changeFact($fact->id, 'стало', ['стало'], 'уточнил', Fact::AGENT);
 

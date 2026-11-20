@@ -15,7 +15,7 @@ use UnexpectedValueException;
 use function Mercurius\Memory\t;
 
 /**
- * spec: BRIEF.md#факты — facts with versions in PostgreSQL, keys in a GIN-indexed array
+ * spec: brief/memory.md#факты — facts with versions in PostgreSQL, keys in a GIN-indexed array
  * ref: references/hermes-plugin-holographic/history.py@4a794f8:L489-L710 (change_fact, end_fact, forget_fact, _erase)
  *      — versions and tombstones; here one database with a scope column instead of a file per scope
  */

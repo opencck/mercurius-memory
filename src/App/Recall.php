@@ -13,7 +13,7 @@ use Mercurius\Memory\Domain\TextAnalyzer;
 /**
  * Facts that answer a message, not merely share a word with it.
  *
- * spec: BRIEF.md#память-слои — coverage of the message's informative keys weighted by IDF within the readable
+ * spec: brief/memory.md#память-слои — coverage of the message's informative keys weighted by IDF within the readable
  *       scopes, times trust and recency; a budget in characters; a fact already given in this conversation is not
  *       repeated within the window
  * ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L964-L1060 (relevant) — IDF weights, words no fact
@@ -71,11 +71,11 @@ final class Recall {
         }
         $given = $conversationId === null ? [] : array_flip($this->store->recalled($conversationId, self::WINDOW));
         $found = $this->byWords($message, $scopes, $given, $budget);
-        // spec: BRIEF.md#факты — and up to two facts of a name the message mentions, without shared words
+        // spec: brief/memory.md#факты — and up to two facts of a name the message mentions, without shared words
         $left = $budget - array_sum(array_map(static fn(Fact $f): int => mb_strlen(self::line($f)) + 1, $found));
         $found = [...$found, ...$this->named($message, $scopes, $given, $found, $left)];
         if ($conversationId !== null && $found !== []) {
-            // spec: BRIEF.md#трассировка-и-метрики — the version given goes into the receipt of recall
+            // spec: brief/operations.md#настройки-агента — the version given goes into the receipt of recall
             $versions = [];
             foreach ($found as $fact) {
                 $versions[$fact->id] = $fact->version;
@@ -160,7 +160,7 @@ final class Recall {
         if ($keys === []) {
             return [];
         }
-        // spec: BRIEF.md#анализ-текста — a same-root word counts ROOT_WEIGHT of an exact one and never recalls alone
+        // spec: brief/memory.md#анализ-текста — a same-root word counts ROOT_WEIGHT of an exact one and never recalls alone
         // ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L276-L291 — the root match weighed at
         //      _DERIV_WEIGHT; here the question's stems are widened, so facts keep their keys as they are
         $roots = [];
@@ -250,7 +250,7 @@ final class Recall {
     /**
      * Facts that fell under the trust threshold, weakest first: recall does not give them, the owner decides on them.
      *
-     * spec: BRIEF.md#память-слои — the weekly review shows facts that fell under the threshold
+     * spec: brief/memory.md#память-слои — the weekly review shows facts that fell under the threshold
      *
      * @param list<string> $scopes
      * @return list<Fact>

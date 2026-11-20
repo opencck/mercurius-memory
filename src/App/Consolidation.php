@@ -19,7 +19,7 @@ use function Mercurius\Memory\t;
  * in numbers and facts nobody used are listed for the owner, a sharp drop of memory raises an alert. Nothing is
  * changed without the owner; no model is called; a night with no changes in memory does nothing.
  *
- * spec: BRIEF.md#консолидация-dreaming
+ * spec: brief/memory.md#консолидация-dreaming
  * ref: references/hermes-dreaming/skills/dreaming/scripts/dream.py@21878d3:L3035-L3068 (find_conflicts) — shared words
  *      and differing numbers make a conflict, not a duplicate; L4614-L4737 (check_memory_loss) — more than 25% of
  *      entries or characters gone, counted from 4 entries or 400 characters; L5184-L5190 (_decay_candidates) — unused,
@@ -96,7 +96,7 @@ final class Consolidation {
             return sprintf(t('app.consolidation.provereno_faktov_zamechaniy_net'), $count);
         }
         $text = t('app.consolidation.pamyat_nochnaya_proverka') . implode("\n\n", $report);
-        // spec: BRIEF.md#консолидация-dreaming — a finding counts as shown only once the report reached the owner; an
+        // spec: brief/memory.md#консолидация-dreaming — a finding counts as shown only once the report reached the owner; an
         //       undelivered pass is a failed one, so the next night looks again even if memory did not change
         $delivered = ($this->tell)($text);
         if ($delivered) {

@@ -12,7 +12,7 @@ use Mercurius\Memory\Domain\TextAnalyzer;
  * In how many different local days a person said a fact in their own messages. What was said on two days holds; what
  * was said once may be passing. Code counts, no model is asked.
  *
- * spec: BRIEF.md#консолидация-dreaming — what the owner repeated on different days; machine text does not count
+ * spec: brief/memory.md#консолидация-dreaming — what the owner repeated on different days; machine text does not count
  * ref: references/hermes-dreaming/skills/dreaming/references/scoring.md@21878d3:L44-L52 — a human message mentions a
  *      fact by two shared stems or one rare word (8 letters for Latin, 10 for others), window 60 days; L126-L128 —
  *      distinct local days; dream_lang.py@21878d3:L175-L180 (NEGATION_WORDS) — a message with a negation the fact has

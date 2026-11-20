@@ -12,7 +12,7 @@ namespace Mercurius\Memory\Domain;
  * In PostgreSQL a vector is kept as its phasor — DIM cosines, then DIM sines — so that the similarity of two vectors
  * is their inner product divided by DIM, one pgvector operation.
  *
- * spec: BRIEF.md#hrr-с-самого-начала
+ * spec: brief/memory.md#hrr-с-самого-начала
  * ref: references/hermes-plugin-holographic/holographic.py@4a794f8:L106-L152 (encode_atom, bind, bundle, similarity,
  *      encode_text, encode_fact) — the same atoms and roles; the text is our keys (stems and identifiers), not raw
  *      words, so word forms meet; the entities are the identifiers among the keys

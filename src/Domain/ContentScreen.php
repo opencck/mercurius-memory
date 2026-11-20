@@ -12,7 +12,7 @@ use function Mercurius\Memory\t;
  * Why a text must not go into memory, or null. Memory comes back into every later conversation, so one poisoned
  * fact is a standing instruction: no commands to the assistant, no role markup, no secrets, nothing invisible.
  *
- * spec: BRIEF.md#память-слои — memory is screened before it is stored and given as data when recalled
+ * spec: brief/memory.md#память-слои — memory is screened before it is stored and given as data when recalled
  * ref: references/hermes-plugin-holographic/screen.py@4a794f8:L872-L937 (_RE_ROLE_MARKUP, _RE_BLOB, _RE_IMAGE_EXFIL,
  *      _hidden_char, _fact_problem) — the same checks in the same order; injection phrases for Russian and English
  *      only, and the secret check is the one the tools use (passed in), not a second list of credential words

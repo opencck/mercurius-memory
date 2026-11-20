@@ -1,5 +1,5 @@
 -- Ночная проверка памяти: журнал проходов со снимком (страж потерь) и паузы показа найденного владельцу.
--- spec: BRIEF.md#консолидация-dreaming
+-- spec: brief/memory.md#консолидация-dreaming
 
 CREATE TABLE memory_consolidations (
     id bigserial PRIMARY KEY,

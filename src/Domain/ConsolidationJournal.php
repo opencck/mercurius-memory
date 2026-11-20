@@ -8,7 +8,7 @@ namespace Mercurius\Memory\Domain;
  * What the nightly check of memory remembers between nights: each pass with a snapshot of memory, and what was
  * already shown to the owner.
  *
- * spec: BRIEF.md#консолидация-dreaming
+ * spec: brief/memory.md#консолидация-dreaming
  */
 interface ConsolidationJournal {
     public const SKIPPED = 'skipped';
