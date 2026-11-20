@@ -161,7 +161,7 @@ interface MemoryStore {
     /**
      * The receipt of recall of a run: the facts it was given and their versions, in order.
      *
-     * spec: brief/operations.md#настройки-агента
+     * spec: brief/operations.md#трассировка-и-метрики
      *
      * @return list<array{fact: int, version: ?int, helpful: ?bool}>
      */
