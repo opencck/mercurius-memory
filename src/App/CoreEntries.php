@@ -14,7 +14,7 @@ use function Mercurius\Memory\t;
  * it — and only one; none or several is an error that names the closest entries. A text written before entries (one
  * block of prose) is one entry.
  *
- * spec: brief/memory.md#всегда-в-контексте — layer 1 is edited by entries
+ * spec: brief/memory.md#профиль-и-сводка — layer 1 is edited by entries
  * ref: references/hermes-agent/tools/memory_tool_store.py@e96221fa:L26 (ENTRY_DELIMITER), L98-L109
  *      (_find_unique_match), L112-L125 (_no_match_error), L403-L474 (add, replace, remove) — the delimiter, an exact
  *      entry before a substring, ambiguity refused, the closest entries in the error; a duplicate is not added

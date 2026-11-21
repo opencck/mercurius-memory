@@ -112,7 +112,7 @@ final class Proposals {
                 if (!in_array(Audience::OWNER, $readable, true)) {
                     throw new InvalidArgumentException(t('app.proposals.profil_i_svodka_menyayutsya_tolko'));
                 }
-                // spec: brief/memory.md#всегда-в-контексте — one entry is added, replaced or removed; the card shows the result
+                // spec: brief/memory.md#профиль-и-сводка — one entry is added, replaced or removed; the card shows the result
                 $text = CoreEntries::apply($this->store->core(MemoryContext::section($kind, Audience::OWNER)), $edit, $oldText, $text);
                 $this->check($text, $kind === Proposal::PROFILE ? self::PROFILE_MAX : self::SUMMARY_MAX);
                 $scope = Audience::OWNER;

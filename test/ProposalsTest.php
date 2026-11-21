@@ -153,7 +153,7 @@ final class ProposalsTest extends TestCase {
     }
 
     public function testLayerOneIsEditedByEntries(): void {
-        // spec: brief/memory.md#всегда-в-контексте — layer 1 is edited by entries, not rewritten whole
+        // spec: brief/memory.md#профиль-и-сводка — layer 1 is edited by entries, not rewritten whole
         $this->store->setCore('profile', "Живёт в Бангкоке\n§\nПишет по-русски");
 
         $added = $this->proposals->propose(Proposal::PROFILE, null, 'Кот — Барсик', 'рассказал', ['owner'], null, null, edit: 'add');

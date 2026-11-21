@@ -12,7 +12,7 @@ final class CoreEntriesTest extends TestCase {
     private const PROFILE = "Живёт в Бангкоке\n§\nПишет по-русски\n§\nНе любит длинные ответы";
 
     public function testAnEntryIsAddedReplacedAndRemovedByItsText(): void {
-        // spec: brief/memory.md#всегда-в-контексте — layer 1 is edited by entries, not rewritten whole
+        // spec: brief/memory.md#профиль-и-сводка — layer 1 is edited by entries, not rewritten whole
         self::assertSame(self::PROFILE . "\n§\nКот — Барсик", CoreEntries::apply(self::PROFILE, 'add', '', 'Кот — Барсик'));
         self::assertSame("Живёт в Паттайе\n§\nПишет по-русски\n§\nНе любит длинные ответы", CoreEntries::apply(self::PROFILE, 'replace', 'Бангкоке', 'Живёт в Паттайе'));
         self::assertSame("Живёт в Бангкоке\n§\nНе любит длинные ответы", CoreEntries::apply(self::PROFILE, 'remove', 'Пишет по-русски', ''));
