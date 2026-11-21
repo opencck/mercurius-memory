@@ -15,15 +15,14 @@ use Mercurius\Memory\Domain\TextAnalyzer;
 use function Mercurius\Memory\t;
 
 /**
- * The nightly check of memory, by code alone: duplicates become a proposal to forget one of them, facts that disagree
- * in numbers and facts nobody used are listed for the owner, a sharp drop of memory raises an alert. Nothing is
- * changed without the owner; no model is called; a night with no changes in memory does nothing.
+ * The nightly check of memory, by code: duplicates become a proposal to forget one of them, facts that disagree in
+ * numbers and facts nobody used are listed for the owner. Nothing is changed without the owner; a night with no changes
+ * in memory does nothing. The guard against a loss of memory is apart (LossGuard): it runs even when sleep does not.
  *
  * spec: brief/memory.md#консолидация-dreaming
  * ref: references/hermes-dreaming/skills/dreaming/scripts/dream.py@21878d3:L3035-L3068 (find_conflicts) — shared words
- *      and differing numbers make a conflict, not a duplicate; L4614-L4737 (check_memory_loss) — more than 25% of
- *      entries or characters gone, counted from 4 entries or 400 characters; L5184-L5190 (_decay_candidates) — unused,
- *      old, low trust, a question and not a deletion; one duplicate pair a night, paused 180 days (scoring.md:L554-L570)
+ *      and differing numbers make a conflict, not a duplicate; L5184-L5190 (_decay_candidates) — unused, old, low trust,
+ *      a question and not a deletion; one duplicate pair a night, paused 180 days (scoring.md:L554-L570)
  */
 final class Consolidation {
     public const FACTS = 2000;
@@ -31,9 +30,6 @@ final class Consolidation {
     public const DUPLICATE_JACCARD = 0.8;
     public const CONFLICT_SHARED = 3;
     public const CONFLICT_OVERLAP = 0.45;
-    public const LOSS_SHARE = 0.25;
-    public const LOSS_MIN_FACTS = 4;
-    public const LOSS_MIN_CHARS = 400;
     public const UNUSED_DAYS = 28;
     public const UNUSED_TRUST = 0.5;
     public const PAUSE_DUPLICATE = 180;
@@ -81,10 +77,6 @@ final class Consolidation {
         $report = [];
         /** @var list<array{string, int, int}> $pending findings that count as shown once the report is delivered */
         $pending = [];
-        $loss = $last === null ? null : self::loss($last['facts'], $last['chars'], $count, $chars);
-        if ($loss !== null) {
-            $report[] = $loss;
-        }
         $duplicate = $this->duplicate($facts);
         if ($duplicate !== null) {
             $report[] = $duplicate;
@@ -106,21 +98,6 @@ final class Consolidation {
         }
         $this->journal->save($delivered ? ConsolidationJournal::DONE : ConsolidationJournal::FAILED, $count, $chars, self::ms($started), $report);
         return $text;
-    }
-
-    private static function loss(int $facts, int $chars, int $nowFacts, int $nowChars): ?string {
-        $byFacts = $facts >= self::LOSS_MIN_FACTS && (float) $nowFacts < (float) $facts * (1.0 - self::LOSS_SHARE);
-        $byChars = $chars >= self::LOSS_MIN_CHARS && (float) $nowChars < (float) $chars * (1.0 - self::LOSS_SHARE);
-        if (!$byFacts && !$byChars) {
-            return null;
-        }
-        return sprintf(
-            t('app.consolidation.pamyati_stalo_zametno_menshe_faktov'),
-            $facts,
-            $nowFacts,
-            $chars,
-            $nowChars,
-        );
     }
 
     /**
