@@ -1,6 +1,6 @@
 # mercurius-memory
 
-**English** | [Русский](README.ru.md)
+**English** | [Русский](README.ru.md) | [中文](README.cn.md)
 
 Memory for AMPHP agents on PostgreSQL: facts with versions, trust and provenance; recall by stemmed keys, words of one
 root and HRR vectors; proposals of new or changed facts that the owner decides; a core layer always in context; a
