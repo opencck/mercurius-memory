@@ -184,6 +184,24 @@ abstract class MemoryStoreContract extends AsyncTestCase {
         self::assertNull($this->store->proposal($again->id));
     }
 
+    public function testAMergeKeepsBothFactsAndTheirVersionsAndOutlivesTheForgottenOne(): void {
+        // spec: brief/memory.md#слияние — the proposal names both facts and the versions shown; forgetting the second does not take it
+        $keep = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'Сервер pve-01 в Хельсинки', ['сервер'], 0.8, Fact::OWNER_SAID, null);
+        $drop = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'У pve-01 128 ГБ памяти', ['памят'], 0.8, Fact::OWNER_SAID, null);
+        $merge = $this->store->propose(Proposal::MERGE, $keep->id, $this->scope, 'Сервер pve-01 в Хельсинки, 128 ГБ памяти', 'r', null, null, false, null, [], $drop->id, $keep->version, $drop->version);
+
+        $read = $this->store->proposal($merge->id);
+        self::assertSame([Proposal::MERGE, $keep->id, $drop->id, $keep->version, $drop->version], [$read?->kind, $read?->factId, $read?->mergeWith, $read?->factVersion, $read?->mergeVersion]);
+        $this->store->setCard($merge->id, '1', '12');
+        self::assertSame([['1', '12']], $this->store->cards($drop->id), 'the card shows the second fact too: forgetting it clears the card');
+        self::assertSame($drop->id, $this->store->decide($merge->id, Proposal::APPROVED)?->mergeWith, 'a decision keeps the merge');
+        self::assertTrue($this->store->forgetFact($drop->id, 'fp3-' . $this->scope));
+        $after = $this->store->proposal($merge->id);
+        self::assertNotNull($after, 'the merge stays when its second fact is forgotten');
+        self::assertNull($after->mergeWith);
+        self::assertSame($keep->version, $after->factVersion);
+    }
+
     public function testEndedFactIsNotChangedAndApprovalCanBeReopened(): void {
         $fact = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'было', ['был'], 0.5, Fact::AGENT, null);
         $this->store->endFact($fact->id, 'всё');

@@ -10,12 +10,19 @@ return array (
   'app.aliases.short' => '«%s» is too short: a word of one or two letters means too many things.',
   'app.aliases.too_few' => 'A group needs at least two different words.',
   'app.aliases.too_many' => 'A group holds %d words at most.',
+  'app.consolidation.conflict_negation' => 'They may contradict each other (a negation):
+#%d %s
+#%d %s
+Keep the correct one; for the wrong one use /forget <number> or ask me to change it.',
   'app.consolidation.davno_ne_prigozhdalis_nuzhny_li' => 'Haven\'t been useful for a long time — are they still needed (if not, /forget <number>):
 ',
   'app.consolidation.fakt_povtoryaet_predlozhil_zabyt_kartoch' => 'Fact #%d repeats #%d — proposed forgetting #%d (card #%d).',
   'app.consolidation.judged_conflict' => 'The model of sleep: these contradict each other — #%d “%s” and #%d “%s”. Which is right?',
   'app.consolidation.judged_same' => 'Memory sleep: repeats fact #%d “%s”.',
   'app.consolidation.judged_supersedes' => 'The model of sleep: #%d “%s” is newer and replaces #%d “%s”. Forget the old one?',
+  'app.consolidation.merge_card' => 'Facts #%d and #%d add to each other — proposed merging them (card #%d).',
+  'app.consolidation.merge_reason' => 'Memory sleep: facts #%d and #%d speak of one thing and one adds to the other — one text instead of two.',
+  'app.consolidation.merge_refused' => 'Merged texts refused by the code\'s check: %d — no cards for them.',
   'app.consolidation.model_silent' => 'The model of sleep did not answer for most pairs: this night was settled by code alone.',
   'app.consolidation.model_spent' => 'Model of sleep: %d calls, %d tokens, $%.4f.',
   'app.consolidation.nochnaya_proverka_povtoryaet_fakt' => 'Nightly check: repeats fact #%d “%s”.',
@@ -25,6 +32,10 @@ return array (
 ',
   'app.consolidation.pamyati_stalo_zametno_menshe_faktov' => '⚠ The memory has noticeably shrunk: facts were %d, now %d; characters were %d, now %d. If you did not forget facts yourself, check /memory.',
   'app.consolidation.provereno_faktov_zamechaniy_net' => 'Facts checked: %d. No remarks.',
+  'app.consolidation.vozmozhno_protivorechat_drug_drugu_razny' => 'They may contradict each other (different numbers):
+#%d %s
+#%d %s
+Keep the correct one; for the wrong one use /forget <number> or ask me to change it.',
   'app.core_entries.ambiguous' => 'old_text fits several entries — say which one:',
   'app.core_entries.closest' => 'The closest entries:',
   'app.core_entries.no_match' => 'No entry fits old_text; copy it word for word from the entry you mean (entries are separated by \'§\').',
@@ -37,6 +48,8 @@ return array (
   'app.memory_context.vladeltsa' => 'the owner',
   'app.proposals.about_person_owner_only' => 'Facts about other people are kept only in the owner\'s memory, which is not available here — not saved.',
   'app.proposals.bad_source' => 'source is owner, inferred or tool.',
+  'app.proposals.merge_other_place' => 'Only two different facts of one place can be merged.',
+  'app.proposals.merge_stale' => 'Accepted, but the facts changed after the proposal — nothing was merged.',
   'app.proposals.ne_zapisyvayu' => 'Not recording: ',
   'app.proposals.neizvestnyy_vid_izmeneniya' => 'Unknown kind of change: ',
   'app.proposals.no_project_here' => 'There is no active project here that the person may see — a fact of a project has nowhere to go.',

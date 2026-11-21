@@ -17,6 +17,8 @@ final class Proposal {
     public const PROFILE = 'profile';
     public const SUMMARY = 'summary';
     public const KINDS = [self::ADD, self::CHANGE, self::END, self::FORGET, self::PROFILE, self::SUMMARY];
+    /** two facts into one: proposed by sleep only, not among the kinds the agent may ask for */
+    public const MERGE = 'merge';
 
     public const PENDING = 'pending';
     public const APPROVED = 'approved';
@@ -40,5 +42,19 @@ final class Proposal {
         public readonly ?string $provenance = null,
         /** @var list<string> keywords the agent gave with the fact */
         public readonly array $keywords = [],
+        /** for a merge: the fact forgotten once its text is in the kept one (factId) */
+        public readonly ?int $mergeWith = null,
+        /** for a merge: the versions of the kept and the forgotten fact the owner was shown */
+        public readonly ?int $factVersion = null,
+        public readonly ?int $mergeVersion = null,
     ) {}
+
+    /** The same proposal with another status or fact. */
+    public function with(?string $status = null, ?int $factId = null, bool $clearMerge = false): self {
+        return new self(
+            $this->id, $this->kind, $factId ?? $this->factId, $this->scope, $this->text, $this->reason, $status ?? $this->status,
+            $this->principalId, $this->runId, $this->aboutPerson, $this->createdAt, $this->provenance, $this->keywords,
+            $clearMerge ? null : $this->mergeWith, $this->factVersion, $this->mergeVersion,
+        );
+    }
 }

@@ -143,6 +143,31 @@ final class Proposals {
     }
 
     /**
+     * A card to merge two facts of one place: the kept fact gets the text, the other is forgotten. Both versions are kept
+     * with the proposal; an edit of either fact before the owner decides makes the merge refuse.
+     *
+     * spec: brief/memory.md#слияние
+     * ref: references/hermes-dreaming/README.md@21878d3:L113-L117 — a merge goes with the versions the human was shown,
+     *      and a text that changed since makes it refuse (changed_since). Here the model of sleep wrote the text and
+     *      the code checked it (MergeGuard), where in hermes the agent writes it after the human's "yes"
+     */
+    public function proposeMerge(Fact $keep, Fact $drop, string $text, string $reason): Proposal {
+        $text = trim($text);
+        $now = [$this->store->fact($keep->id), $this->store->fact($drop->id)];
+        foreach ($now as $fact) {
+            if ($fact === null || !$fact->active) {
+                throw new InvalidArgumentException(t('app.proposals.takogo_fakta_zdes_net'));
+            }
+        }
+        if ($keep->id === $drop->id || $keep->scope !== $drop->scope) {
+            throw new InvalidArgumentException(t('app.proposals.merge_other_place'));
+        }
+        $this->check($text, ContentScreen::FACT_MAX);
+        $this->notForgotten($text);
+        return $this->store->propose(Proposal::MERGE, $keep->id, $keep->scope, $text, mb_substr(trim($reason), 0, 500), null, null, false, null, [], $drop->id, $keep->version, $drop->version);
+    }
+
+    /**
      * Accepts or rejects a pending proposal once; an accepted one is applied. Null when it is already decided.
      * A text forgotten since the proposal was made is rejected instead. If applying fails, the proposal goes back to
      * pending and the error goes on, so the owner can press again.
@@ -168,7 +193,7 @@ final class Proposals {
             $this->store->reopen($proposal->id);
             throw $e;
         }
-        return new Decision($proposal, $applied, $applied ? t('app.proposals.prinyato_pamyat_izmenena') : t('app.proposals.prinyato_no_menyat_uzhe_nechego'));
+        return new Decision($proposal, $applied, $applied ? t('app.proposals.prinyato_pamyat_izmenena') : t($proposal->kind === Proposal::MERGE ? 'app.proposals.merge_stale' : 'app.proposals.prinyato_no_menyat_uzhe_nechego'));
     }
 
     private function apply(Proposal $proposal, bool $byAgent = false): bool {
@@ -189,12 +214,34 @@ final class Proposals {
                 return $this->store->endFact((int) $proposal->factId, $proposal->reason);
             case Proposal::FORGET:
                 return $this->forget((int) $proposal->factId);
+            case Proposal::MERGE:
+                return $this->merge($proposal);
             case Proposal::PROFILE:
             case Proposal::SUMMARY:
                 $this->store->setCore(MemoryContext::section($proposal->kind, $proposal->scope), $proposal->text);
                 return true;
         }
         return false;
+    }
+
+    /**
+     * The kept fact takes the merged text and the keys of both, so what found either fact finds it; then the other is
+     * forgotten. Nothing is done when either fact changed or went since the owner was shown them.
+     *
+     * spec: brief/memory.md#слияние
+     */
+    private function merge(Proposal $proposal): bool {
+        $keep = $this->store->fact((int) $proposal->factId);
+        $drop = $proposal->mergeWith === null ? null : $this->store->fact($proposal->mergeWith);
+        if ($keep === null || $drop === null || !$keep->active || !$drop->active
+            || $keep->version !== $proposal->factVersion || $drop->version !== $proposal->mergeVersion) {
+            return false;
+        }
+        $keys = array_values(array_unique([...$this->analyzer->keys($proposal->text), ...$keep->keys, ...$drop->keys]));
+        if ($this->store->changeFact($keep->id, $proposal->text, $keys, $proposal->reason, Fact::OWNER_CONFIRMED) === null) {
+            return false;
+        }
+        return $this->forget($drop->id);
     }
 
     /**

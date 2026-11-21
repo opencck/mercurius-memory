@@ -21,7 +21,7 @@ use function Mercurius\Memory\t;
  */
 final class PostgresMemoryStore implements MemoryStore {
     private const FACT = 'id, scope, category, text, array_to_json(keys)::text AS keys, trust::float8 AS trust, provenance, status, version, extract(epoch FROM updated_at)::bigint AS updated';
-    private const PROPOSAL = 'id, kind, fact_id, scope, text, reason, status, principal_id, run_id, about_person, extract(epoch FROM created_at)::bigint AS created_epoch, provenance, array_to_json(keywords)::text AS keywords';
+    private const PROPOSAL = 'id, kind, fact_id, scope, text, reason, status, principal_id, run_id, about_person, extract(epoch FROM created_at)::bigint AS created_epoch, provenance, array_to_json(keywords)::text AS keywords, merge_with, fact_version, merge_version';
 
     public function __construct(private readonly PostgresLink $db) {}
 
@@ -287,10 +287,10 @@ final class PostgresMemoryStore implements MemoryStore {
         return $this->db->execute('SELECT 1 AS found FROM fact_tombstones WHERE hmac = ?', [$fingerprint])->fetchRow() !== null;
     }
 
-    public function propose(string $kind, ?int $factId, string $scope, string $text, string $reason, ?int $principalId, ?int $runId, bool $aboutPerson = false, ?string $provenance = null, array $keywords = []): Proposal {
+    public function propose(string $kind, ?int $factId, string $scope, string $text, string $reason, ?int $principalId, ?int $runId, bool $aboutPerson = false, ?string $provenance = null, array $keywords = [], ?int $mergeWith = null, ?int $factVersion = null, ?int $mergeVersion = null): Proposal {
         $row = $this->db->execute(
-            'INSERT INTO memory_proposals (kind, fact_id, scope, text, reason, principal_id, run_id, about_person, provenance, keywords) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::text[]) RETURNING ' . self::PROPOSAL,
-            [$kind, $factId, $scope, $text, $reason, $principalId, $runId, $aboutPerson, $provenance, $keywords],
+            'INSERT INTO memory_proposals (kind, fact_id, scope, text, reason, principal_id, run_id, about_person, provenance, keywords, merge_with, fact_version, merge_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::text[], ?, ?, ?) RETURNING ' . self::PROPOSAL,
+            [$kind, $factId, $scope, $text, $reason, $principalId, $runId, $aboutPerson, $provenance, $keywords, $mergeWith, $factVersion, $mergeVersion],
         )->fetchRow() ?? throw new UnexpectedValueException('Proposal was not created');
         return self::proposal_($row);
     }
@@ -320,8 +320,8 @@ final class PostgresMemoryStore implements MemoryStore {
         $cards = [];
         foreach ($this->db->execute(
             "SELECT card_chat_id, card_message_id FROM memory_proposals
-             WHERE card_message_id IS NOT NULL AND (fact_id = ? OR (fact_id IS NULL AND kind = 'add' AND text = (SELECT text FROM facts WHERE id = ?)))",
-            [$factId, $factId],
+             WHERE card_message_id IS NOT NULL AND (fact_id = ? OR merge_with = ? OR (fact_id IS NULL AND kind = 'add' AND text = (SELECT text FROM facts WHERE id = ?)))",
+            [$factId, $factId, $factId],
         ) as $row) {
             $cards[] = [self::str($row, 'card_chat_id'), self::str($row, 'card_message_id')];
         }
@@ -446,6 +446,9 @@ final class PostgresMemoryStore implements MemoryStore {
             isset($row['created_epoch']) && is_int($row['created_epoch']) ? $row['created_epoch'] : null,
             isset($row['provenance']) && is_string($row['provenance']) ? $row['provenance'] : null,
             self::words($row['keywords'] ?? null),
+            isset($row['merge_with']) ? self::int($row, 'merge_with') : null,
+            isset($row['fact_version']) ? self::int($row, 'fact_version') : null,
+            isset($row['merge_version']) ? self::int($row, 'merge_version') : null,
         );
     }
 

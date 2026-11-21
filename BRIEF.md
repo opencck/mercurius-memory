@@ -49,7 +49,8 @@
 | `src/App/MemoryContext.php` | Что память даёт запуску: слой 1 для промпта и факты по сообщению |
 | `src/App/Audience.php` | Какие области памяти видны в этом месте: владелец, участник, чат, проект |
 | `src/App/Corroboration.php` | В скольких разных днях человек сам сказал факт (окно 60 дней) |
-| `src/App/Consolidation.php` | Ночная проверка кодом: почти копии, противоречия в числах и отрицаниях, давно не нужные факты, страж потерь |
+| `src/App/Consolidation.php` | Ночная проверка кодом: почти копии, противоречия в числах и отрицаниях, давно не нужные факты; вердикты судьи пары и карточки слияния |
+| `src/App/MergeGuard.php`, `src/Domain/SleepMerger.php` | Слияние двух фактов: порт модели, которая пишет один текст, и проверка этого текста кодом (spec: brief/memory.md#слияние) |
 | `src/App/Decision.php` | Итог решения владельца: предложение, изменилась ли память, что сказать |
 | `src/Infrastructure/` | `PostgresMemoryStore`, `PostgresConsolidationJournal`; `InMemoryMemoryStore`, `InMemoryConsolidationJournal` — для тестов и простых случаев |
 | `src/Testing/MemoryStoreContract.php` | Контрактный тест любого `MemoryStore`; приложение наследует его проверкой PostgreSQL |

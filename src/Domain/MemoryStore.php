@@ -127,8 +127,11 @@ interface MemoryStore {
 
     public function forgotten(string $fingerprint): bool;
 
-    /** @param list<string> $keywords */
-    public function propose(string $kind, ?int $factId, string $scope, string $text, string $reason, ?int $principalId, ?int $runId, bool $aboutPerson = false, ?string $provenance = null, array $keywords = []): Proposal;
+    /**
+     * @param list<string> $keywords
+     * @param ?int $mergeWith for a merge: the fact to forget; the versions are those of both facts the owner is shown
+     */
+    public function propose(string $kind, ?int $factId, string $scope, string $text, string $reason, ?int $principalId, ?int $runId, bool $aboutPerson = false, ?string $provenance = null, array $keywords = [], ?int $mergeWith = null, ?int $factVersion = null, ?int $mergeVersion = null): Proposal;
 
     public function proposal(int $id): ?Proposal;
 

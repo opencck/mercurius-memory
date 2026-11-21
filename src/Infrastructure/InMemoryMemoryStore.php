@@ -191,6 +191,9 @@ final class InMemoryMemoryStore implements MemoryStore {
         foreach ($this->proposals as $pid => $p) {
             if ($p->factId === $id || ($p->factId === null && $p->kind === Proposal::ADD && $p->text === $text)) {
                 unset($this->proposals[$pid], $this->cards[$pid]);
+            } elseif ($p->mergeWith === $id) {
+                // as ON DELETE SET NULL: a merge whose second fact is gone stays, and cannot be applied
+                $this->proposals[$pid] = $p->with(null, null, true);
             }
         }
         unset($this->facts[$id], $this->history[$id]);
@@ -203,9 +206,9 @@ final class InMemoryMemoryStore implements MemoryStore {
         return isset($this->tombstones[$fingerprint]);
     }
 
-    public function propose(string $kind, ?int $factId, string $scope, string $text, string $reason, ?int $principalId, ?int $runId, bool $aboutPerson = false, ?string $provenance = null, array $keywords = []): Proposal {
+    public function propose(string $kind, ?int $factId, string $scope, string $text, string $reason, ?int $principalId, ?int $runId, bool $aboutPerson = false, ?string $provenance = null, array $keywords = [], ?int $mergeWith = null, ?int $factVersion = null, ?int $mergeVersion = null): Proposal {
         $id = $this->nextProposal++;
-        return $this->proposals[$id] = new Proposal($id, $kind, $factId, $scope, $text, $reason, Proposal::PENDING, $principalId, $runId, $aboutPerson, time(), $provenance, $keywords);
+        return $this->proposals[$id] = new Proposal($id, $kind, $factId, $scope, $text, $reason, Proposal::PENDING, $principalId, $runId, $aboutPerson, time(), $provenance, $keywords, $mergeWith, $factVersion, $mergeVersion);
     }
 
     public function proposal(int $id): ?Proposal {
@@ -217,7 +220,7 @@ final class InMemoryMemoryStore implements MemoryStore {
         if ($p === null || $p->status !== Proposal::PENDING) {
             return null;
         }
-        return $this->proposals[$id] = new Proposal($p->id, $p->kind, $p->factId, $p->scope, $p->text, $p->reason, $status, $p->principalId, $p->runId, $p->aboutPerson, $p->createdAt, $p->provenance, $p->keywords);
+        return $this->proposals[$id] = $p->with($status);
     }
 
     public function setCard(int $id, string $chatId, string $messageId): void {
@@ -227,7 +230,7 @@ final class InMemoryMemoryStore implements MemoryStore {
     public function linkProposal(int $proposalId, int $factId): void {
         $p = $this->proposals[$proposalId] ?? null;
         if ($p !== null) {
-            $this->proposals[$proposalId] = new Proposal($p->id, $p->kind, $factId, $p->scope, $p->text, $p->reason, $p->status, $p->principalId, $p->runId, $p->aboutPerson, $p->createdAt, $p->provenance, $p->keywords);
+            $this->proposals[$proposalId] = $p->with(null, $factId);
         }
     }
 
@@ -235,7 +238,7 @@ final class InMemoryMemoryStore implements MemoryStore {
         $text = $this->facts[$factId]->text ?? null;
         $cards = [];
         foreach ($this->proposals as $pid => $p) {
-            if (isset($this->cards[$pid]) && ($p->factId === $factId || ($p->factId === null && $p->kind === Proposal::ADD && $p->text === $text))) {
+            if (isset($this->cards[$pid]) && ($p->factId === $factId || $p->mergeWith === $factId || ($p->factId === null && $p->kind === Proposal::ADD && $p->text === $text))) {
                 $cards[] = $this->cards[$pid];
             }
         }
@@ -245,7 +248,7 @@ final class InMemoryMemoryStore implements MemoryStore {
     public function reopen(int $id): void {
         $p = $this->proposals[$id] ?? null;
         if ($p !== null && $p->status === Proposal::APPROVED) {
-            $this->proposals[$id] = new Proposal($p->id, $p->kind, $p->factId, $p->scope, $p->text, $p->reason, Proposal::PENDING, $p->principalId, $p->runId, $p->aboutPerson, $p->createdAt, $p->provenance, $p->keywords);
+            $this->proposals[$id] = $p->with(Proposal::PENDING);
         }
     }
 

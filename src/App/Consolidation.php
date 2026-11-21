@@ -11,6 +11,7 @@ use Mercurius\Memory\Domain\Fact;
 use Mercurius\Memory\Domain\MemoryStore;
 use Mercurius\Memory\Domain\Proposal;
 use Mercurius\Memory\Domain\SleepJudge;
+use Mercurius\Memory\Domain\SleepMerger;
 use Mercurius\Memory\Domain\TextAnalyzer;
 use Mercurius\Memory\Domain\Verdict;
 
@@ -41,12 +42,13 @@ final class Consolidation {
 
     /** a verdict under this is not used */
     public const MIN_CONFIDENCE = 0.6;
-    /** cards «forget» a night: the code's copy and the model's ones together */
+    /** cards a night: the code's copy, the model's copies and merges together */
     public const CARDS = 3;
 
     /** @var Closure(): int */
     private readonly Closure $now;
     private ?SleepJudge $judge = null;
+    private ?SleepMerger $merger = null;
     /** @var list<array{Fact, Fact}> pairs the model found to add a detail to each other: candidates to merge */
     private array $merges = [];
     private static ?TextAnalyzer $analyzer = null;
@@ -74,6 +76,15 @@ final class Consolidation {
      */
     public function useJudge(SleepJudge $judge): void {
         $this->judge = $judge;
+    }
+
+    /**
+     * The model of sleep, asked to write one text for a pair where one fact adds a detail to the other.
+     *
+     * spec: brief/memory.md#слияние
+     */
+    public function useMerger(SleepMerger $merger): void {
+        $this->merger = $merger;
     }
 
     /** @return list<array{Fact, Fact}> the pairs of the last pass the model found to add a detail to each other */
@@ -106,11 +117,16 @@ final class Consolidation {
             $report[] = $duplicate;
         }
         // spec: brief/memory.md#судья-пары — the model's word on the gray zone; a conflict of the code it ruled out is not shown
-        [$judged, $settled] = $this->judged($facts, $duplicate === null ? self::CARDS : self::CARDS - 1, $pending);
-        array_push($report, ...$this->conflicts($facts, $pending, $settled), ...$judged, ...$this->unused($facts, $pending));
+        $cards = $duplicate === null ? self::CARDS : self::CARDS - 1;
+        [$judged, $settled] = $this->judged($facts, $cards, $pending);
+        array_push($report, ...$this->conflicts($facts, $pending, $settled), ...$judged, ...$this->merged($cards), ...$this->unused($facts, $pending));
 
         // spec: brief/memory.md#судья-пары — what the model of sleep cost goes into the journal and the report
         [$calls, $tokens, $cost] = $this->judge?->spent() ?? [0, 0, 0.0];
+        if ($this->merger !== null && $this->merger !== $this->judge) {
+            [$c, $t, $d] = $this->merger->spent();
+            [$calls, $tokens, $cost] = [$calls + $c, $tokens + $t, $cost + $d];
+        }
         if ($report === []) {
             $this->journal->save(ConsolidationJournal::DONE, $count, $chars, self::ms($started), $report, $calls);
             return sprintf(t('app.consolidation.provereno_faktov_zamechaniy_net'), $count) . ($calls > 0 ? ' ' . sprintf(t('app.consolidation.model_spent'), $calls, $tokens, $cost) : '');
@@ -137,12 +153,7 @@ final class Consolidation {
      * @param list<Fact> $facts
      */
     private function duplicate(array $facts): ?string {
-        $pending = [];
-        foreach ($this->store->pending() as $proposal) {
-            if ($proposal->factId !== null) {
-                $pending[$proposal->factId] = true;
-            }
-        }
+        $pending = $this->busy();
         $checked = 0;
         foreach ($facts as $i => $a) {
             foreach (array_slice($facts, $i + 1) as $b) {
@@ -185,11 +196,12 @@ final class Consolidation {
      * half of the pairs, the night stays the code's and says so.
      *
      * @param list<Fact> $facts
+     * @param int $cards cards left for the night; what is left after the copies goes to merges
      * @param list<array{string, int, int}> $pending
      * @param-out list<array{string, int, int}> $pending
      * @return array{list<string>, array<string, true>} lines of the report, pairs the model settled (not to be shown as conflicts)
      */
-    private function judged(array $facts, int $cards, array &$pending): array {
+    private function judged(array $facts, int &$cards, array &$pending): array {
         $this->merges = [];
         if ($this->judge === null) {
             return [[], []];
@@ -237,6 +249,74 @@ final class Consolidation {
             }
         }
         return [$lines, $settled];
+    }
+
+    /**
+     * Pairs where one fact adds a detail to the other become cards «merge», within the cards left for the night: the
+     * model writes one text in the language of the fact that stays, the code checks it (MergeGuard), the owner decides.
+     * A pair of two places is not merged: the text would reach people of the other place. A shown pair rests as a copy.
+     *
+     * spec: brief/memory.md#слияние
+     * @return list<string>
+     */
+    private function merged(int $cards): array {
+        if ($this->merger === null || $cards <= 0 || $this->merges === []) {
+            return [];
+        }
+        $pairs = [];
+        $busy = $this->busy();
+        foreach ($this->merges as [$a, $b]) {
+            if ($a->scope !== $b->scope || isset($busy[$a->id]) || isset($busy[$b->id]) || !$this->journal->due('merge', min($a->id, $b->id), max($a->id, $b->id), self::PAUSE_DUPLICATE)) {
+                continue;
+            }
+            $pairs[] = self::keep($a, $b);
+            if (count($pairs) >= $cards) {
+                break;
+            }
+        }
+        if ($pairs === []) {
+            return [];
+        }
+        $texts = $this->merger->merge($pairs);
+        $lines = [];
+        $refused = 0;
+        foreach ($pairs as $i => [$keep, $drop]) {
+            $text = $texts[$i] ?? null;
+            if ($text === null) {
+                continue;
+            }
+            if (MergeGuard::problem($keep, $drop, $text) !== null) {
+                $refused++;
+                continue;
+            }
+            try {
+                $proposal = $this->proposals->proposeMerge($keep, $drop, $text, sprintf(t('app.consolidation.merge_reason'), $keep->id, $drop->id));
+            } catch (InvalidArgumentException) {
+                $refused++;
+                continue;
+            }
+            if (($this->show)($proposal)) {
+                $this->journal->shown('merge', min($keep->id, $drop->id), max($keep->id, $drop->id));
+                $lines[] = sprintf(t('app.consolidation.merge_card'), $keep->id, $drop->id, $proposal->id);
+            }
+        }
+        if ($refused > 0) {
+            $lines[] = sprintf(t('app.consolidation.merge_refused'), $refused);
+        }
+        return $lines;
+    }
+
+    /** @return array<int, true> facts a pending card already asks about */
+    private function busy(): array {
+        $busy = [];
+        foreach ($this->store->pending() as $proposal) {
+            foreach ([$proposal->factId, $proposal->mergeWith] as $id) {
+                if ($id !== null) {
+                    $busy[$id] = true;
+                }
+            }
+        }
+        return $busy;
     }
 
     /** A card «forget» for the weaker of two copies; its number when it reached the owner. */
