@@ -46,10 +46,10 @@ final class PostgresConsolidationJournal implements ConsolidationJournal {
         return $changed;
     }
 
-    public function save(string $status, int $facts, int $chars, int $durationMs, array $report): void {
+    public function save(string $status, int $facts, int $chars, int $durationMs, array $report, int $modelCalls = 0): void {
         $this->db->execute(
-            'INSERT INTO memory_consolidations (status, facts, chars, duration_ms, report) VALUES (?, ?, ?, ?, ?::jsonb)',
-            [$status, $facts, $chars, $durationMs, json_encode($report, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)],
+            'INSERT INTO memory_consolidations (status, facts, chars, duration_ms, report, model_calls) VALUES (?, ?, ?, ?, ?::jsonb, ?)',
+            [$status, $facts, $chars, $durationMs, json_encode($report, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), $modelCalls],
         );
     }
 

@@ -10,7 +10,9 @@ use Mercurius\Memory\Domain\ConsolidationJournal;
 use Mercurius\Memory\Domain\Fact;
 use Mercurius\Memory\Domain\MemoryStore;
 use Mercurius\Memory\Domain\Proposal;
+use Mercurius\Memory\Domain\SleepJudge;
 use Mercurius\Memory\Domain\TextAnalyzer;
+use Mercurius\Memory\Domain\Verdict;
 
 use function Mercurius\Memory\t;
 
@@ -37,8 +39,16 @@ final class Consolidation {
     public const LIST_CAP = 5;
     private const LINE = 160;
 
+    /** a verdict under this is not used */
+    public const MIN_CONFIDENCE = 0.6;
+    /** cards «forget» a night: the code's copy and the model's ones together */
+    public const CARDS = 3;
+
     /** @var Closure(): int */
     private readonly Closure $now;
+    private ?SleepJudge $judge = null;
+    /** @var list<array{Fact, Fact}> pairs the model found to add a detail to each other: candidates to merge */
+    private array $merges = [];
     private static ?TextAnalyzer $analyzer = null;
 
     /**
@@ -55,6 +65,20 @@ final class Consolidation {
         ?Closure $now = null,
     ) {
         $this->now = $now ?? static fn(): int => time();
+    }
+
+    /**
+     * The model of sleep, asked about the gray zone: pairs the code cannot settle.
+     *
+     * spec: brief/memory.md#судья-пары
+     */
+    public function useJudge(SleepJudge $judge): void {
+        $this->judge = $judge;
+    }
+
+    /** @return list<array{Fact, Fact}> the pairs of the last pass the model found to add a detail to each other */
+    public function merges(): array {
+        return $this->merges;
     }
 
     /**
@@ -81,11 +105,18 @@ final class Consolidation {
         if ($duplicate !== null) {
             $report[] = $duplicate;
         }
-        array_push($report, ...$this->conflicts($facts, $pending), ...$this->unused($facts, $pending));
+        // spec: brief/memory.md#судья-пары — the model's word on the gray zone; a conflict of the code it ruled out is not shown
+        [$judged, $settled] = $this->judged($facts, $duplicate === null ? self::CARDS : self::CARDS - 1, $pending);
+        array_push($report, ...$this->conflicts($facts, $pending, $settled), ...$judged, ...$this->unused($facts, $pending));
 
+        // spec: brief/memory.md#судья-пары — what the model of sleep cost goes into the journal and the report
+        [$calls, $tokens, $cost] = $this->judge?->spent() ?? [0, 0, 0.0];
         if ($report === []) {
-            $this->journal->save(ConsolidationJournal::DONE, $count, $chars, self::ms($started), $report);
-            return sprintf(t('app.consolidation.provereno_faktov_zamechaniy_net'), $count);
+            $this->journal->save(ConsolidationJournal::DONE, $count, $chars, self::ms($started), $report, $calls);
+            return sprintf(t('app.consolidation.provereno_faktov_zamechaniy_net'), $count) . ($calls > 0 ? ' ' . sprintf(t('app.consolidation.model_spent'), $calls, $tokens, $cost) : '');
+        }
+        if ($calls > 0) {
+            $report[] = sprintf(t('app.consolidation.model_spent'), $calls, $tokens, $cost);
         }
         $text = t('app.consolidation.pamyat_nochnaya_proverka') . implode("\n\n", $report);
         // spec: brief/memory.md#консолидация-dreaming — a finding counts as shown only once the report reached the owner; an
@@ -96,7 +127,7 @@ final class Consolidation {
                 $this->journal->shown($kind, $a, $b);
             }
         }
-        $this->journal->save($delivered ? ConsolidationJournal::DONE : ConsolidationJournal::FAILED, $count, $chars, self::ms($started), $report);
+        $this->journal->save($delivered ? ConsolidationJournal::DONE : ConsolidationJournal::FAILED, $count, $chars, self::ms($started), $report, $calls);
         return $text;
     }
 
@@ -149,14 +180,96 @@ final class Consolidation {
     }
 
     /**
+     * The gray zone asked of the model: copies become cards «forget» (within the cards left for the night), conflicts and
+     * replacements go into the report, a detail added is a candidate to merge. When the model answered for fewer than
+     * half of the pairs, the night stays the code's and says so.
+     *
+     * @param list<Fact> $facts
+     * @param list<array{string, int, int}> $pending
+     * @param-out list<array{string, int, int}> $pending
+     * @return array{list<string>, array<string, true>} lines of the report, pairs the model settled (not to be shown as conflicts)
+     */
+    private function judged(array $facts, int $cards, array &$pending): array {
+        $this->merges = [];
+        if ($this->judge === null) {
+            return [[], []];
+        }
+        $gray = (new GrayZone())->pairs($facts);
+        if ($gray === []) {
+            return [[], []];
+        }
+        $verdicts = $this->judge->judge(array_map(static fn(array $p): array => [$p[0], $p[1]], $gray));
+        $answered = count(array_filter($verdicts, static fn(?Verdict $v): bool => $v !== null));
+        if ($answered * 2 < count($gray)) {
+            return [[t('app.consolidation.model_silent')], []];
+        }
+        $lines = [];
+        $settled = [];
+        foreach ($gray as $i => [$a, $b]) {
+            $verdict = $verdicts[$i] ?? null;
+            if ($verdict === null || $verdict->confidence < self::MIN_CONFIDENCE) {
+                continue;
+            }
+            $settled[self::pairKey($a, $b)] = true;
+            switch ($verdict->label) {
+                case Verdict::SAME:
+                    [$keep, $drop] = self::keep($a, $b);
+                    $card = $cards > 0 ? $this->forget($keep, $drop, 'app.consolidation.judged_same') : null;
+                    if ($card !== null) {
+                        $cards--;
+                        $lines[] = sprintf(t('app.consolidation.fakt_povtoryaet_predlozhil_zabyt_kartoch'), $drop->id, $keep->id, $drop->id, $card);
+                    }
+                    break;
+                case Verdict::ADDS_DETAIL:
+                    $this->merges[] = [$a, $b];
+                    break;
+                case Verdict::CONTRADICTS:
+                case Verdict::SUPERSEDES:
+                    if (!$this->journal->due('judged', min($a->id, $b->id), max($a->id, $b->id), self::PAUSE_NOTICE)) {
+                        break;
+                    }
+                    $pending[] = ['judged', min($a->id, $b->id), max($a->id, $b->id)];
+                    [$new, $old] = $verdict->newer === 'a' ? [$a, $b] : [$b, $a];
+                    $lines[] = $verdict->label === Verdict::SUPERSEDES
+                        ? sprintf(t('app.consolidation.judged_supersedes'), $new->id, self::cut($new->text), $old->id, self::cut($old->text))
+                        : sprintf(t('app.consolidation.judged_conflict'), $a->id, self::cut($a->text), $b->id, self::cut($b->text));
+                    break;
+            }
+        }
+        return [$lines, $settled];
+    }
+
+    /** A card «forget» for the weaker of two copies; its number when it reached the owner. */
+    private function forget(Fact $keep, Fact $drop, string $reason): ?int {
+        if (!$this->journal->due('duplicate', min($keep->id, $drop->id), max($keep->id, $drop->id), self::PAUSE_DUPLICATE)) {
+            return null;
+        }
+        try {
+            $proposal = $this->proposals->propose(Proposal::FORGET, $drop->id, '', sprintf(t($reason), $keep->id, self::cut($keep->text)), [$drop->scope], null, null);
+        } catch (InvalidArgumentException) {
+            return null;
+        }
+        if (($this->show)($proposal)) {
+            $this->journal->shown('duplicate', min($keep->id, $drop->id), max($keep->id, $drop->id));
+            return $proposal->id;
+        }
+        return null;
+    }
+
+    private static function pairKey(Fact $a, Fact $b): string {
+        return min($a->id, $b->id) . ':' . max($a->id, $b->id);
+    }
+
+    /**
      * Facts about the same thing with different numbers: which is right is the owner's call.
      *
      * @param list<Fact> $facts
      * @param list<array{string, int, int}> $pending
      * @param-out list<array{string, int, int}> $pending
+     * @param array<string, true> $settled pairs the model settled: not shown as conflicts
      * @return list<string>
      */
-    private function conflicts(array $facts, array &$pending): array {
+    private function conflicts(array $facts, array &$pending, array $settled = []): array {
         $found = [];
         $checked = 0;
         foreach ($facts as $i => $a) {
@@ -164,7 +277,7 @@ final class Consolidation {
                 if (++$checked > self::PAIR_BUDGET || count($found) >= self::LIST_CAP) {
                     break 2;
                 }
-                if ($a->scope !== $b->scope || !self::conflict($a, $b) || !$this->journal->due('conflict', $a->id, $b->id, self::PAUSE_NOTICE)) {
+                if ($a->scope !== $b->scope || isset($settled[self::pairKey($a, $b)]) || !self::conflict($a, $b) || !$this->journal->due('conflict', $a->id, $b->id, self::PAUSE_NOTICE)) {
                     continue;
                 }
                 $pending[] = ['conflict', $a->id, $b->id];

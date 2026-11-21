@@ -8,7 +8,7 @@ use Closure;
 use Mercurius\Memory\Domain\ConsolidationJournal;
 
 final class InMemoryConsolidationJournal implements ConsolidationJournal {
-    /** @var list<array{at: int, facts: int, chars: int, status: string, report: list<string>}> */
+    /** @var list<array{at: int, facts: int, chars: int, status: string, report: list<string>, calls?: int}> */
     public array $passes = [];
     /** @var array<string, int> "kind:a:b" => shown at */
     public array $notices = [];
@@ -43,8 +43,8 @@ final class InMemoryConsolidationJournal implements ConsolidationJournal {
         return $changed;
     }
 
-    public function save(string $status, int $facts, int $chars, int $durationMs, array $report): void {
-        $this->passes[] = ['at' => ($this->now)(), 'facts' => $facts, 'chars' => $chars, 'status' => $status, 'report' => $report];
+    public function save(string $status, int $facts, int $chars, int $durationMs, array $report, int $modelCalls = 0): void {
+        $this->passes[] = ['at' => ($this->now)(), 'facts' => $facts, 'chars' => $chars, 'status' => $status, 'report' => $report, 'calls' => $modelCalls];
     }
 
     public function due(string $kind, int $a, int $b, int $pauseDays): bool {

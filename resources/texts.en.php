@@ -13,6 +13,11 @@ return array (
   'app.consolidation.davno_ne_prigozhdalis_nuzhny_li' => 'Haven\'t been useful for a long time — are they still needed (if not, /forget <number>):
 ',
   'app.consolidation.fakt_povtoryaet_predlozhil_zabyt_kartoch' => 'Fact #%d repeats #%d — proposed forgetting #%d (card #%d).',
+  'app.consolidation.judged_conflict' => 'The model of sleep: these contradict each other — #%d “%s” and #%d “%s”. Which is right?',
+  'app.consolidation.judged_same' => 'Memory sleep: repeats fact #%d “%s”.',
+  'app.consolidation.judged_supersedes' => 'The model of sleep: #%d “%s” is newer and replaces #%d “%s”. Forget the old one?',
+  'app.consolidation.model_silent' => 'The model of sleep did not answer for most pairs: this night was settled by code alone.',
+  'app.consolidation.model_spent' => 'Model of sleep: %d calls, %d tokens, $%.4f.',
   'app.consolidation.nochnaya_proverka_povtoryaet_fakt' => 'Nightly check: repeats fact #%d “%s”.',
   'app.consolidation.pamyat_ne_menyalas_proveryat_nechego' => 'The memory has not changed — nothing to check.',
   'app.consolidation.pamyat_nochnaya_proverka' => 'Memory: nightly check.

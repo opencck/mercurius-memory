@@ -18,8 +18,11 @@ interface ConsolidationJournal {
     /** @return array{at: int, facts: int, chars: int, status: string}|null the last pass that looked at memory */
     public function last(): ?array;
 
-    /** @param list<string> $report */
-    public function save(string $status, int $facts, int $chars, int $durationMs, array $report): void;
+    /**
+     * @param list<string> $report
+     * @param int $modelCalls calls of the model of sleep in this pass
+     */
+    public function save(string $status, int $facts, int $chars, int $durationMs, array $report, int $modelCalls = 0): void;
 
     /** Whether a finding may be shown now: not shown within the pause. */
     public function due(string $kind, int $a, int $b, int $pauseDays): bool;
