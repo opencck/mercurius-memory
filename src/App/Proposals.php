@@ -76,7 +76,7 @@ final class Proposals {
             throw new InvalidArgumentException(t('app.proposals.about_person_owner_only'));
         }
         $scope = $aboutPerson ? Audience::OWNER : $readable[0];
-        // spec: brief/memory.md#проекты-задачи-и-отношение-участника-к-проекту — a fact of the chat's active project
+        // spec: brief/memory.md#проекты-и-отношение-участника-к-проекту — a fact of the chat's active project
         if ($project) {
             $projects = array_values(array_filter($readable, static fn(string $s): bool => str_starts_with($s, 'project:')));
             if ($projects === [] || $aboutPerson) {

@@ -14,7 +14,7 @@ final class Audience {
 
     /**
      * @param int|null $projectId the active project of the chat, when the participant may see it: its facts are read
-     *                            here too (spec: brief/memory.md#проекты-задачи-и-отношение-участника-к-проекту)
+     *                            here too (spec: brief/memory.md#проекты-и-отношение-участника-к-проекту)
      * @return list<string> scopes readable here; the first one is where new facts of this place go
      */
     public static function scopes(bool $owner, int $principalId, string $channel, string $chatId, bool $privateChat, ?int $projectId = null): array {

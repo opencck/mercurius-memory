@@ -144,7 +144,7 @@ final class ProposalsTest extends TestCase {
     }
 
     public function testAFactOfTheProjectGoesToItsScope(): void {
-        // spec: brief/memory.md#проекты-задачи-и-отношение-участника-к-проекту — facts of a project
+        // spec: brief/memory.md#проекты-и-отношение-участника-к-проекту — facts of a project
         $proposal = $this->proposals->propose(Proposal::ADD, null, 'Сервер проекта — Ubuntu 24.04', 'проверил', ['chat:t:-100', 'project:12'], null, null, project: true);
 
         self::assertSame('project:12', $proposal->scope);

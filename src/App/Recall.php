@@ -84,7 +84,7 @@ final class Recall {
         $left = $budget - array_sum(array_map(static fn(Fact $f): int => mb_strlen(self::line($f)) + 1, $found));
         $found = [...$found, ...$this->named($message, $scopes, $given, $found, $left)];
         if ($conversationId !== null && $found !== []) {
-            // spec: brief/operations.md#память-в-сводке-и-квитанция-извлечения — the version given goes into the receipt of recall
+            // spec: brief/operations.md#квитанция-извлечения-памяти — the version given goes into the receipt of recall
             $versions = [];
             foreach ($found as $fact) {
                 $versions[$fact->id] = $fact->version;
