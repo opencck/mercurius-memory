@@ -27,10 +27,10 @@ final class InMemoryMemoryStore implements MemoryStore {
     private int $nextFact = 1;
     private int $nextProposal = 1;
 
-    public function addFact(string $scope, string $category, string $text, array $keys, float $trust, string $provenance, ?int $runId): Fact {
+    public function addFact(string $scope, string $category, string $text, array $keys, float $trust, string $provenance, ?int $runId, array $words = []): Fact {
         $id = $this->nextFact++;
         $this->history[$id] = [['version' => 1, 'text' => $text, 'reason' => 'добавлен', 'source' => $provenance]];
-        return $this->facts[$id] = new Fact($id, $scope, $category, $text, $keys, $trust, $provenance, true, 1, time());
+        return $this->facts[$id] = new Fact($id, $scope, $category, $text, $keys, $trust, $provenance, true, 1, time(), $words);
     }
 
     public function fact(int $id): ?Fact {
@@ -138,26 +138,45 @@ final class InMemoryMemoryStore implements MemoryStore {
         $changed = 0;
         foreach ($this->facts as $id => $f) {
             $new = $keys($f->text);
+            foreach ($f->words as $word) {
+                $new = [...$new, ...$keys($word)];
+            }
+            $new = array_values(array_unique($new));
             if (!$f->active || $new === [] || $new === $f->keys) {
                 continue;
             }
-            $this->facts[$id] = new Fact($id, $f->scope, $f->category, $f->text, $new, $f->trust, $f->provenance, $f->active, $f->version, $f->updatedAt);
+            $this->facts[$id] = $f->with(keys: $new);
             $changed++;
         }
         return $changed;
+    }
+
+    public function unenriched(int $wanted, int $limit): array {
+        $facts = array_values(array_filter($this->facts, static fn(Fact $f): bool => $f->active && $f->enriched < $wanted));
+        usort($facts, static fn(Fact $a, Fact $b): int => $a->id <=> $b->id);
+        return array_slice($facts, 0, $limit);
+    }
+
+    public function enrich(int $id, int $version, array $words, array $keys, int $level): bool {
+        $f = $this->facts[$id] ?? null;
+        if ($f === null || !$f->active || $f->version !== $version) {
+            return false;
+        }
+        $this->facts[$id] = $f->with(keys: $keys, words: $words, enriched: $level);
+        return true;
     }
 
     public function versions(int $factId): array {
         return $this->history[$factId] ?? [];
     }
 
-    public function changeFact(int $id, string $text, array $keys, string $reason, ?string $source = null): ?Fact {
+    public function changeFact(int $id, string $text, array $keys, string $reason, ?string $source = null, ?array $words = null): ?Fact {
         $f = $this->facts[$id] ?? null;
         if ($f === null || !$f->active) {
             return null;
         }
         $this->history[$id][] = ['version' => $f->version + 1, 'text' => $text, 'reason' => $reason, 'source' => $source];
-        return $this->facts[$id] = new Fact($id, $f->scope, $f->category, $text, $keys, $f->trust, $f->provenance, $f->active, $f->version + 1, time());
+        return $this->facts[$id] = $f->with(text: $text, keys: $keys, version: $f->version + 1, updatedAt: time(), words: $words, enriched: Fact::BARE);
     }
 
     /** @var array<int, int> */
@@ -169,7 +188,7 @@ final class InMemoryMemoryStore implements MemoryStore {
             return null;
         }
         $trust = max(0.0, min(1.0, round($f->trust + $delta, 6)));
-        $this->facts[$id] = new Fact($id, $f->scope, $f->category, $f->text, $f->keys, $trust, $f->provenance, true, $f->version, $f->updatedAt);
+        $this->facts[$id] = $f->with(trust: $trust);
         $this->helpful[$id] = ($this->helpful[$id] ?? 0) + ($helpful ? 1 : 0);
         return $trust;
     }
@@ -179,7 +198,7 @@ final class InMemoryMemoryStore implements MemoryStore {
         if ($f === null || !$f->active) {
             return false;
         }
-        $this->facts[$id] = new Fact($id, $f->scope, $f->category, $f->text, $f->keys, $f->trust, $f->provenance, false, $f->version, time());
+        $this->facts[$id] = $f->with(active: false, updatedAt: time());
         return true;
     }
 

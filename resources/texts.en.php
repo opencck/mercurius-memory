@@ -16,6 +16,7 @@ return array (
 Keep the correct one; for the wrong one use /forget <number> or ask me to change it.',
   'app.consolidation.davno_ne_prigozhdalis_nuzhny_li' => 'Haven\'t been useful for a long time — are they still needed (if not, /forget <number>):
 ',
+  'app.consolidation.enriched' => 'Sleep added search words to facts: %d, words: %d. The texts of the facts did not change.',
   'app.consolidation.fakt_povtoryaet_predlozhil_zabyt_kartoch' => 'Fact #%d repeats #%d — proposed forgetting #%d (card #%d).',
   'app.consolidation.judged_conflict' => 'The model of sleep: these contradict each other — #%d “%s” and #%d “%s”. Which is right?',
   'app.consolidation.judged_same' => 'Memory sleep: repeats fact #%d “%s”.',
@@ -32,6 +33,7 @@ Keep the correct one; for the wrong one use /forget <number> or ask me to change
 ',
   'app.consolidation.pamyati_stalo_zametno_menshe_faktov' => '⚠ The memory has noticeably shrunk: facts were %d, now %d; characters were %d, now %d. If you did not forget facts yourself, check /memory.',
   'app.consolidation.provereno_faktov_zamechaniy_net' => 'Facts checked: %d. No remarks.',
+  'app.consolidation.spelling_added' => 'Sleep: %s To remove — /aliases - <number>.',
   'app.consolidation.vozmozhno_protivorechat_drug_drugu_razny' => 'They may contradict each other (different numbers):
 #%d %s
 #%d %s

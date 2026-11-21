@@ -49,6 +49,7 @@ final class Consolidation {
     private readonly Closure $now;
     private ?SleepJudge $judge = null;
     private ?SleepMerger $merger = null;
+    private ?Enrichment $enrichment = null;
     /** @var list<array{Fact, Fact}> pairs the model found to add a detail to each other: candidates to merge */
     private array $merges = [];
     private static ?TextAnalyzer $analyzer = null;
@@ -87,6 +88,16 @@ final class Consolidation {
         $this->merger = $merger;
     }
 
+    /**
+     * Nightly words for facts, given by the model of sleep: they run even on a night memory did not change, while
+     * facts wait for them.
+     *
+     * spec: brief/memory.md#ночное-обогащение
+     */
+    public function useEnrichment(Enrichment $enrichment): void {
+        $this->enrichment = $enrichment;
+    }
+
     /** @return list<array{Fact, Fact}> the pairs of the last pass the model found to add a detail to each other */
     public function merges(): array {
         return $this->merges;
@@ -104,8 +115,11 @@ final class Consolidation {
         $last = $this->journal->last();
         $changed = $last === null || $last['facts'] !== $count || $last['chars'] !== $chars
             || array_filter($facts, static fn(Fact $f): bool => $f->updatedAt >= $last['at']) !== [];
+        // spec: brief/memory.md#ночное-обогащение — words for facts that wait for them; a night that added some is a changed one
+        [$enriched, $words, $spellings] = $this->enrichment?->run($this->busy()) ?? [0, 0, []];
+        $changed = $changed || $enriched > 0;
         if (!$force && !$changed) {
-            $this->journal->save(ConsolidationJournal::SKIPPED, $count, $chars, self::ms($started), []);
+            $this->journal->save(ConsolidationJournal::SKIPPED, $count, $chars, self::ms($started), [], $this->enrichment?->spent()[0] ?? 0);
             return t('app.consolidation.pamyat_ne_menyalas_proveryat_nechego');
         }
 
@@ -120,11 +134,16 @@ final class Consolidation {
         $cards = $duplicate === null ? self::CARDS : self::CARDS - 1;
         [$judged, $settled] = $this->judged($facts, $cards, $pending);
         array_push($report, ...$this->conflicts($facts, $pending, $settled), ...$judged, ...$this->merged($cards), ...$this->unused($facts, $pending));
+        if ($enriched > 0) {
+            $report[] = sprintf(t('app.consolidation.enriched'), $enriched, $words);
+        }
+        array_push($report, ...$spellings);
 
-        // spec: brief/memory.md#судья-пары — what the model of sleep cost goes into the journal and the report
-        [$calls, $tokens, $cost] = $this->judge?->spent() ?? [0, 0, 0.0];
-        if ($this->merger !== null && $this->merger !== $this->judge) {
-            [$c, $t, $d] = $this->merger->spent();
+        // spec: brief/memory.md#судья-пары — what the model of sleep cost goes into the journal and the report; spent()
+        //       hands over what was spent since it was asked last, so a model that is judge and merger counts once
+        [$calls, $tokens, $cost] = [0, 0, 0.0];
+        foreach ([$this->judge, $this->merger, $this->enrichment] as $model) {
+            [$c, $t, $d] = $model?->spent() ?? [0, 0, 0.0];
             [$calls, $tokens, $cost] = [$calls + $c, $tokens + $t, $cost + $d];
         }
         if ($report === []) {

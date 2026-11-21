@@ -50,6 +50,7 @@
 | `src/App/Audience.php` | Какие области памяти видны в этом месте: владелец, участник, чат, проект |
 | `src/App/Corroboration.php` | В скольких разных днях человек сам сказал факт (окно 60 дней) |
 | `src/App/Consolidation.php` | Ночная проверка кодом: почти копии, противоречия в числах и отрицаниях, давно не нужные факты; вердикты судьи пары и карточки слияния |
+| `src/App/Enrichment.php`, `src/Domain/SleepEnricher.php` | Ночные слова поиска для фактов: порт модели и проверка слов кодом; слова живут рядом с текстом (`Fact::$words`) (spec: brief/memory.md#ночное-обогащение) |
 | `src/App/MergeGuard.php`, `src/Domain/SleepMerger.php` | Слияние двух фактов: порт модели, которая пишет один текст, и проверка этого текста кодом (spec: brief/memory.md#слияние) |
 | `src/App/Decision.php` | Итог решения владельца: предложение, изменилась ли память, что сказать |
 | `src/Infrastructure/` | `PostgresMemoryStore`, `PostgresConsolidationJournal`; `InMemoryMemoryStore`, `InMemoryConsolidationJournal` — для тестов и простых случаев |

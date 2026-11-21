@@ -11,8 +11,11 @@ namespace Mercurius\Memory\Domain;
  * spec: brief/memory.md#факты
  */
 interface MemoryStore {
-    /** @param list<string> $keys */
-    public function addFact(string $scope, string $category, string $text, array $keys, float $trust, string $provenance, ?int $runId): Fact;
+    /**
+     * @param list<string> $keys
+     * @param list<string> $words words to find it by besides its text, kept for keying it again
+     */
+    public function addFact(string $scope, string $category, string $text, array $keys, float $trust, string $provenance, ?int $runId, array $words = []): Fact;
 
     public function fact(int $id): ?Fact;
 
@@ -55,14 +58,32 @@ interface MemoryStore {
     public function encodeMissing(int $limit): int;
 
     /**
-     * Keys every active fact again where they differ from those of its text now (a new rule of the analyzer); not a
-     * new version. Returns how many changed.
+     * Keys every active fact again where they differ from those of its text and its words now (a new rule of the
+     * analyzer); not a new version. Returns how many changed.
      *
      * spec: brief/memory.md#ключи-и-однокоренные
      *
      * @param \Closure(string): list<string> $keys
      */
     public function rekey(\Closure $keys): int;
+
+    /**
+     * Active facts sleep has not enriched as far as wanted, oldest first.
+     *
+     * spec: brief/memory.md#ночное-обогащение
+     *
+     * @return list<Fact>
+     */
+    public function unenriched(int $wanted, int $limit): array;
+
+    /**
+     * Gives a fact the words sleep found and the keys with them; not a new version and not a change of the text. Nothing
+     * is done when the fact changed since it was read (another version) or is gone.
+     *
+     * @param list<string> $words all its words now, the agent's and sleep's
+     * @param list<string> $keys
+     */
+    public function enrich(int $id, int $version, array $words, array $keys, int $level): bool;
 
     /**
      * Active facts of the scopes sharing at least one key: the greatest sum of the weights of the keys they hold first,
@@ -101,8 +122,13 @@ interface MemoryStore {
      */
     public function faded(array $scopes, float $below, int $limit): array;
 
-    /** @param list<string> $keys a new version; null when the fact is gone */
-    public function changeFact(int $id, string $text, array $keys, string $reason, ?string $source = null): ?Fact;
+    /**
+     * A new version; null when the fact is gone. Sleep looks at the new text again (enriched goes back to BARE).
+     *
+     * @param list<string> $keys
+     * @param ?list<string> $words its words from now on; null — the same as before
+     */
+    public function changeFact(int $id, string $text, array $keys, string $reason, ?string $source = null, ?array $words = null): ?Fact;
 
     /**
      * The versions of a fact, oldest first: what it said, why it changed, who made the version.

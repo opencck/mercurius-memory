@@ -20,17 +20,17 @@ use function Mercurius\Memory\t;
  *      — versions and tombstones; here one database with a scope column instead of a file per scope
  */
 final class PostgresMemoryStore implements MemoryStore {
-    private const FACT = 'id, scope, category, text, array_to_json(keys)::text AS keys, trust::float8 AS trust, provenance, status, version, extract(epoch FROM updated_at)::bigint AS updated';
+    private const FACT = 'id, scope, category, text, array_to_json(keys)::text AS keys, trust::float8 AS trust, provenance, status, version, extract(epoch FROM updated_at)::bigint AS updated, array_to_json(words)::text AS words, enriched';
     private const PROPOSAL = 'id, kind, fact_id, scope, text, reason, status, principal_id, run_id, about_person, extract(epoch FROM created_at)::bigint AS created_epoch, provenance, array_to_json(keywords)::text AS keywords, merge_with, fact_version, merge_version';
 
     public function __construct(private readonly PostgresLink $db) {}
 
-    public function addFact(string $scope, string $category, string $text, array $keys, float $trust, string $provenance, ?int $runId): Fact {
+    public function addFact(string $scope, string $category, string $text, array $keys, float $trust, string $provenance, ?int $runId, array $words = []): Fact {
         $transaction = $this->db->beginTransaction();
         try {
             $row = $transaction->execute(
-                'INSERT INTO facts (scope, category, text, keys, trust, provenance, run_id, hrr) VALUES (?, ?, ?, ?::text[], ?, ?, ?, ?::vector) RETURNING ' . self::FACT,
-                [$scope, $category, $text, $keys, $trust, $provenance, $runId, self::vector($keys)],
+                'INSERT INTO facts (scope, category, text, keys, trust, provenance, run_id, hrr, words) VALUES (?, ?, ?, ?::text[], ?, ?, ?, ?::vector, ?::text[]) RETURNING ' . self::FACT,
+                [$scope, $category, $text, $keys, $trust, $provenance, $runId, self::vector($keys), $words],
             )->fetchRow() ?? throw new UnexpectedValueException('Fact was not created');
             $fact = self::fact_($row);
             $transaction->execute('INSERT INTO fact_versions (fact_id, version, text, reason, source) VALUES (?, 1, ?, ?, ?)', [$fact->id, $text, t('infrastructure.postgres_memory_store.dobavlen'), $provenance]);
@@ -106,10 +106,14 @@ final class PostgresMemoryStore implements MemoryStore {
 
     public function rekey(\Closure $keys): int {
         $changed = 0;
-        foreach ($this->db->query("SELECT id, text, array_to_json(keys)::text AS keys FROM facts WHERE status = 'active' ORDER BY id") as $row) {
+        foreach ($this->db->query("SELECT id, text, array_to_json(keys)::text AS keys, array_to_json(words)::text AS words FROM facts WHERE status = 'active' ORDER BY id") as $row) {
             /** @var mixed $old */
             $old = json_decode(self::str($row, 'keys'), true, 4);
             $new = $keys(self::str($row, 'text'));
+            foreach (self::words($row['words'] ?? null) as $word) {
+                $new = [...$new, ...$keys($word)];
+            }
+            $new = array_values(array_unique($new));
             if ($new === [] || $old === $new) {
                 continue;
             }
@@ -117,6 +121,21 @@ final class PostgresMemoryStore implements MemoryStore {
             $changed++;
         }
         return $changed;
+    }
+
+    public function unenriched(int $wanted, int $limit): array {
+        $facts = [];
+        foreach ($this->db->execute("SELECT " . self::FACT . " FROM facts WHERE status = 'active' AND enriched < ? ORDER BY id LIMIT ?", [$wanted, $limit]) as $row) {
+            $facts[] = self::fact_($row);
+        }
+        return $facts;
+    }
+
+    public function enrich(int $id, int $version, array $words, array $keys, int $level): bool {
+        return $this->db->execute(
+            "UPDATE facts SET words = ?::text[], keys = ?::text[], hrr = ?::vector, enriched = ? WHERE id = ? AND version = ? AND status = 'active' RETURNING id",
+            [$words, $keys, self::vector($keys), $level, $id, $version],
+        )->fetchRow() !== null;
     }
 
     public function encodeMissing(int $limit): int {
@@ -215,12 +234,12 @@ final class PostgresMemoryStore implements MemoryStore {
         return $rows;
     }
 
-    public function changeFact(int $id, string $text, array $keys, string $reason, ?string $source = null): ?Fact {
+    public function changeFact(int $id, string $text, array $keys, string $reason, ?string $source = null, ?array $words = null): ?Fact {
         $transaction = $this->db->beginTransaction();
         try {
             $row = $transaction->execute(
-                "UPDATE facts SET text = ?, keys = ?::text[], hrr = ?::vector, version = version + 1, updated_at = now() WHERE id = ? AND status = 'active' RETURNING " . self::FACT,
-                [$text, $keys, self::vector($keys), $id],
+                "UPDATE facts SET text = ?, keys = ?::text[], hrr = ?::vector, words = coalesce(?::text[], words), enriched = 0, version = version + 1, updated_at = now() WHERE id = ? AND status = 'active' RETURNING " . self::FACT,
+                [$text, $keys, self::vector($keys), $words, $id],
             )->fetchRow();
             if ($row === null) {
                 $transaction->rollback();
@@ -427,6 +446,8 @@ final class PostgresMemoryStore implements MemoryStore {
             self::str($row, 'status') === 'active',
             self::int($row, 'version'),
             self::int($row, 'updated'),
+            self::words($row['words'] ?? null),
+            isset($row['enriched']) ? self::int($row, 'enriched') : Fact::BARE,
         );
     }
 

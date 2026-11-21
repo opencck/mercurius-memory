@@ -205,11 +205,11 @@ final class Proposals {
                     Fact::OWNER_SAID => self::SAID_TRUST,
                     default => self::AGENT_TRUST,
                 };
-                $fact = $this->store->addFact($proposal->scope, Fact::KNOWLEDGE, $proposal->text, $this->keys($proposal), $trust, $provenance, $proposal->runId);
+                $fact = $this->store->addFact($proposal->scope, Fact::KNOWLEDGE, $proposal->text, $this->keys($proposal), $trust, $provenance, $proposal->runId, $proposal->keywords);
                 $this->store->linkProposal($proposal->id, $fact->id);
                 return true;
             case Proposal::CHANGE:
-                return $this->store->changeFact((int) $proposal->factId, $proposal->text, $this->keys($proposal), $proposal->reason, $byAgent ? ($proposal->provenance ?? Fact::AGENT) : Fact::OWNER_CONFIRMED) !== null;
+                return $this->store->changeFact((int) $proposal->factId, $proposal->text, $this->keys($proposal), $proposal->reason, $byAgent ? ($proposal->provenance ?? Fact::AGENT) : Fact::OWNER_CONFIRMED, $proposal->keywords === [] ? null : $proposal->keywords) !== null;
             case Proposal::END:
                 return $this->store->endFact((int) $proposal->factId, $proposal->reason);
             case Proposal::FORGET:
@@ -238,7 +238,7 @@ final class Proposals {
             return false;
         }
         $keys = array_values(array_unique([...$this->analyzer->keys($proposal->text), ...$keep->keys, ...$drop->keys]));
-        if ($this->store->changeFact($keep->id, $proposal->text, $keys, $proposal->reason, Fact::OWNER_CONFIRMED) === null) {
+        if ($this->store->changeFact($keep->id, $proposal->text, $keys, $proposal->reason, Fact::OWNER_CONFIRMED, array_values(array_unique([...$keep->words, ...$drop->words]))) === null) {
             return false;
         }
         return $this->forget($drop->id);
