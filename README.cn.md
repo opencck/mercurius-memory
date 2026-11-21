@@ -2,6 +2,8 @@
 
 [English](README.md) | [Русский](README.ru.md) | **中文**
 
+> 本文由模型翻译，尚未经人工审校；如有出入，以英文版为准。
+
 面向 AMPHP 智能体、基于 PostgreSQL 的记忆：带版本、可信度和来源的事实；按词干键、同根词和 HRR 向量召回；由所有者裁决的新增或修改事实的提案；始终在上下文中的核心层；以及每晚的整合，用于找出重复、矛盾和已不再有用的事实。
 
 属于 [Mercurius](https://github.com/opencck/mercurius)——一个自主的个人智能体。该软件包不依赖 Mercurius 应用，可以单独使用。
