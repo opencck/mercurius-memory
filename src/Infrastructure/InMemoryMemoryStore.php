@@ -193,6 +193,15 @@ final class InMemoryMemoryStore implements MemoryStore {
         return $trust;
     }
 
+    public function restoreFact(int $id, string $reason): ?Fact {
+        $f = $this->facts[$id] ?? null;
+        if ($f === null || $f->active) {
+            return null;
+        }
+        $this->history[$id][] = ['version' => $f->version + 1, 'text' => $f->text, 'reason' => $reason, 'source' => null];
+        return $this->facts[$id] = $f->with(active: true, version: $f->version + 1, updatedAt: time());
+    }
+
     public function endFact(int $id, string $reason): bool {
         $f = $this->facts[$id] ?? null;
         if ($f === null || !$f->active) {

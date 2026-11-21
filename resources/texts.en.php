@@ -10,6 +10,12 @@ return array (
   'app.aliases.short' => '«%s» is too short: a word of one or two letters means too many things.',
   'app.aliases.too_few' => 'A group needs at least two different words.',
   'app.aliases.too_many' => 'A group holds %d words at most.',
+  'app.consolidation.auto_conflict' => 'Sleep by itself: fact #%d “%s” was replaced by the newer #%d “%s” — ended (edit #%d; to bring it back — /dream undo %d).',
+  'app.consolidation.auto_conflict_reason' => 'sleep: replaced by fact #%d',
+  'app.consolidation.auto_copy' => 'Sleep by itself: fact #%d “%s” repeated #%d — ended (edit #%d; to bring it back — /dream undo %d).',
+  'app.consolidation.auto_copy_reason' => 'sleep: repeats fact #%d',
+  'app.consolidation.auto_merge' => 'Sleep by itself: facts #%d and #%d merged into “%s” (edit #%d; to undo — /dream undo %d).',
+  'app.consolidation.auto_merge_reason' => 'sleep: merged with fact #%d',
   'app.consolidation.conflict_negation' => 'They may contradict each other (a negation):
 #%d %s
 #%d %s
@@ -34,6 +40,10 @@ Keep the correct one; for the wrong one use /forget <number> or ask me to change
   'app.consolidation.pamyati_stalo_zametno_menshe_faktov' => '⚠ The memory has noticeably shrunk: facts were %d, now %d; characters were %d, now %d. If you did not forget facts yourself, check /memory.',
   'app.consolidation.provereno_faktov_zamechaniy_net' => 'Facts checked: %d. No remarks.',
   'app.consolidation.spelling_added' => 'Sleep: %s To remove — /aliases - <number>.',
+  'app.consolidation.undo_moved_on' => 'Edit of sleep #%d is not undone: fact #%d changed after it — undoing would overwrite the new text.',
+  'app.consolidation.undo_none' => 'There is no edit of sleep #%d, or it was undone already.',
+  'app.consolidation.undo_reason' => 'edit of sleep undone',
+  'app.consolidation.undone' => 'Edit of sleep #%d undone: the facts are as before it.',
   'app.consolidation.vozmozhno_protivorechat_drug_drugu_razny' => 'They may contradict each other (different numbers):
 #%d %s
 #%d %s

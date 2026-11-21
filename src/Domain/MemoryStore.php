@@ -145,6 +145,13 @@ interface MemoryStore {
      */
     public function rateFact(int $id, float $delta, bool $helpful): ?float;
 
+    /**
+     * An ended fact holds again: a new version with the same text and the reason. Null when it is gone or active.
+     *
+     * spec: brief/memory.md#постоянное-разрешение — undoing an edit sleep made by itself
+     */
+    public function restoreFact(int $id, string $reason): ?Fact;
+
     /** The fact stops being true; it stays in the history. */
     public function endFact(int $id, string $reason): bool;
 

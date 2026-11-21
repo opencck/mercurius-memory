@@ -19,6 +19,8 @@ final class Proposal {
     public const KINDS = [self::ADD, self::CHANGE, self::END, self::FORGET, self::PROFILE, self::SUMMARY];
     /** two facts into one: proposed by sleep only, not among the kinds the agent may ask for */
     public const MERGE = 'merge';
+    /** the provenance of a proposal sleep made, and the source of a version sleep wrote */
+    public const SLEEP = 'sleep';
 
     public const PENDING = 'pending';
     public const APPROVED = 'approved';

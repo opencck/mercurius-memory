@@ -10,6 +10,8 @@ use Mercurius\Memory\Domain\ConsolidationJournal;
 use Mercurius\Memory\Domain\Fact;
 use Mercurius\Memory\Domain\MemoryStore;
 use Mercurius\Memory\Domain\Proposal;
+use Mercurius\Memory\Domain\SleepEdit;
+use Mercurius\Memory\Domain\SleepEdits;
 use Mercurius\Memory\Domain\SleepJudge;
 use Mercurius\Memory\Domain\SleepMerger;
 use Mercurius\Memory\Domain\TextAnalyzer;
@@ -44,13 +46,23 @@ final class Consolidation {
     public const MIN_CONFIDENCE = 0.6;
     /** cards a night: the code's copy, the model's copies and merges together */
     public const CARDS = 3;
+    /** a verdict sleep acts on by itself, under the owner's standing permission */
+    public const AUTO_CONFIDENCE = 0.85;
+    /** edits sleep makes by itself a night */
+    public const AUTO_PER_NIGHT = 10;
 
     /** @var Closure(): int */
     private readonly Closure $now;
     private ?SleepJudge $judge = null;
     private ?SleepMerger $merger = null;
     private ?Enrichment $enrichment = null;
-    /** @var list<array{Fact, Fact}> pairs the model found to add a detail to each other: candidates to merge */
+    /** @var (Closure(): list<string>)|null the kinds of edits the owner let sleep make by itself */
+    private ?Closure $allowed = null;
+    private ?SleepEdits $edits = null;
+    /** @var list<string> the kinds allowed in this pass */
+    private array $allowedNow = [];
+    private int $autoLeft = 0;
+    /** @var list<array{Fact, Fact, float}> pairs the model found to add a detail to each other, with its confidence: candidates to merge */
     private array $merges = [];
     private static ?TextAnalyzer $analyzer = null;
 
@@ -98,7 +110,19 @@ final class Consolidation {
         $this->enrichment = $enrichment;
     }
 
-    /** @return list<array{Fact, Fact}> the pairs of the last pass the model found to add a detail to each other */
+    /**
+     * The owner's standing permission: kinds of edits (SleepEdit::KINDS) sleep makes by itself, read at each pass. Sleep
+     * ends a fact instead of forgetting it and records the edit, so the owner can undo it.
+     *
+     * spec: brief/memory.md#постоянное-разрешение
+     * @param Closure(): list<string> $allowed
+     */
+    public function useStandingPermission(Closure $allowed, SleepEdits $edits): void {
+        $this->allowed = $allowed;
+        $this->edits = $edits;
+    }
+
+    /** @return list<array{Fact, Fact, float}> the pairs of the last pass the model found to add a detail to each other */
     public function merges(): array {
         return $this->merges;
     }
@@ -124,6 +148,8 @@ final class Consolidation {
         }
 
         $report = [];
+        $this->allowedNow = $this->allowed === null || $this->edits === null ? [] : ($this->allowed)();
+        $this->autoLeft = self::AUTO_PER_NIGHT;
         /** @var list<array{string, int, int}> $pending findings that count as shown once the report is delivered */
         $pending = [];
         $duplicate = $this->duplicate($facts);
@@ -186,6 +212,13 @@ final class Consolidation {
                 if (!$this->journal->due('duplicate', min($a->id, $b->id), max($a->id, $b->id), self::PAUSE_DUPLICATE)) {
                     continue;
                 }
+                // spec: brief/memory.md#постоянное-разрешение — a near copy is ended by sleep itself when the owner allowed it
+                if ($this->allows(SleepEdit::COPY)) {
+                    $line = $this->endCopy($keep, $drop);
+                    if ($line !== null) {
+                        return $line;
+                    }
+                }
                 try {
                     $proposal = $this->proposals->propose(
                         Proposal::FORGET,
@@ -195,6 +228,7 @@ final class Consolidation {
                         [$drop->scope],
                         null,
                         null,
+                        bySleep: true,
                     );
                 } catch (InvalidArgumentException) {
                     continue;
@@ -245,6 +279,14 @@ final class Consolidation {
             switch ($verdict->label) {
                 case Verdict::SAME:
                     [$keep, $drop] = self::keep($a, $b);
+                    if ($verdict->confidence >= self::AUTO_CONFIDENCE && $this->allows(SleepEdit::COPY)
+                        && $this->journal->due('duplicate', min($a->id, $b->id), max($a->id, $b->id), self::PAUSE_DUPLICATE)) {
+                        $line = $this->endCopy($keep, $drop);
+                        if ($line !== null) {
+                            $lines[] = $line;
+                            break;
+                        }
+                    }
                     $card = $cards > 0 ? $this->forget($keep, $drop, 'app.consolidation.judged_same') : null;
                     if ($card !== null) {
                         $cards--;
@@ -252,15 +294,26 @@ final class Consolidation {
                     }
                     break;
                 case Verdict::ADDS_DETAIL:
-                    $this->merges[] = [$a, $b];
+                    $this->merges[] = [$a, $b, $verdict->confidence];
                     break;
                 case Verdict::CONTRADICTS:
                 case Verdict::SUPERSEDES:
                     if (!$this->journal->due('judged', min($a->id, $b->id), max($a->id, $b->id), self::PAUSE_NOTICE)) {
                         break;
                     }
-                    $pending[] = ['judged', min($a->id, $b->id), max($a->id, $b->id)];
                     [$new, $old] = $verdict->newer === 'a' ? [$a, $b] : [$b, $a];
+                    // spec: brief/memory.md#постоянное-разрешение — a replacement the judge is sure of, said later and in the
+                    //       owner's words, ends the old fact by itself when the owner allowed conflicts to be settled
+                    if ($verdict->label === Verdict::SUPERSEDES && $verdict->newer !== null && $verdict->confidence >= self::AUTO_CONFIDENCE
+                        && $this->allows(SleepEdit::CONFLICT) && $new->updatedAt >= $old->updatedAt && in_array($new->provenance, [Fact::OWNER_SAID, Fact::OWNER_CONFIRMED], true)) {
+                        $line = $this->endReplaced($new, $old);
+                        if ($line !== null) {
+                            $this->journal->shown('judged', min($a->id, $b->id), max($a->id, $b->id));
+                            $lines[] = $line;
+                            break;
+                        }
+                    }
+                    $pending[] = ['judged', min($a->id, $b->id), max($a->id, $b->id)];
                     $lines[] = $verdict->label === Verdict::SUPERSEDES
                         ? sprintf(t('app.consolidation.judged_supersedes'), $new->id, self::cut($new->text), $old->id, self::cut($old->text))
                         : sprintf(t('app.consolidation.judged_conflict'), $a->id, self::cut($a->text), $b->id, self::cut($b->text));
@@ -279,17 +332,20 @@ final class Consolidation {
      * @return list<string>
      */
     private function merged(int $cards): array {
-        if ($this->merger === null || $cards <= 0 || $this->merges === []) {
+        $auto = $this->allows(SleepEdit::MERGE);
+        if ($this->merger === null || ($cards <= 0 && !$auto) || $this->merges === []) {
             return [];
         }
         $pairs = [];
+        $sure = [];
         $busy = $this->busy();
-        foreach ($this->merges as [$a, $b]) {
+        foreach ($this->merges as [$a, $b, $confidence]) {
             if ($a->scope !== $b->scope || isset($busy[$a->id]) || isset($busy[$b->id]) || !$this->journal->due('merge', min($a->id, $b->id), max($a->id, $b->id), self::PAUSE_DUPLICATE)) {
                 continue;
             }
+            $sure[count($pairs)] = $auto && $confidence >= self::AUTO_CONFIDENCE;
             $pairs[] = self::keep($a, $b);
-            if (count($pairs) >= $cards) {
+            if (count($pairs) >= ($auto ? max($cards, $this->autoLeft) : $cards)) {
                 break;
             }
         }
@@ -304,10 +360,23 @@ final class Consolidation {
             if ($text === null) {
                 continue;
             }
-            if (MergeGuard::problem($keep, $drop, $text) !== null) {
+            if (MergeGuard::problem($keep, $drop, $text) !== null || $this->proposals->problem($text) !== null) {
                 $refused++;
                 continue;
             }
+            // spec: brief/memory.md#постоянное-разрешение — a merge sleep is sure of is made by itself when the owner allowed it
+            if (($sure[$i] ?? false) && $this->autoLeft > 0) {
+                $line = $this->autoMerge($keep, $drop, $text);
+                if ($line !== null) {
+                    $this->journal->shown('merge', min($keep->id, $drop->id), max($keep->id, $drop->id));
+                    $lines[] = $line;
+                    continue;
+                }
+            }
+            if ($cards <= 0) {
+                continue;
+            }
+            $cards--;
             try {
                 $proposal = $this->proposals->proposeMerge($keep, $drop, $text, sprintf(t('app.consolidation.merge_reason'), $keep->id, $drop->id));
             } catch (InvalidArgumentException) {
@@ -323,6 +392,80 @@ final class Consolidation {
             $lines[] = sprintf(t('app.consolidation.merge_refused'), $refused);
         }
         return $lines;
+    }
+
+    private function allows(string $kind): bool {
+        return $this->autoLeft > 0 && $this->edits !== null && in_array($kind, $this->allowedNow, true);
+    }
+
+    /**
+     * Sleep ends the weaker of two copies by itself and records the edit; the pair rests as after a card.
+     */
+    private function endCopy(Fact $keep, Fact $drop): ?string {
+        if ($this->edits === null || !$this->store->endFact($drop->id, sprintf(t('app.consolidation.auto_copy_reason'), $keep->id))) {
+            return null;
+        }
+        $this->autoLeft--;
+        $this->journal->shown('duplicate', min($keep->id, $drop->id), max($keep->id, $drop->id));
+        $edit = $this->edits->record(SleepEdit::COPY, $keep->id, null, $drop->id, mb_strlen($drop->text));
+        return sprintf(t('app.consolidation.auto_copy'), $drop->id, self::cut($drop->text), $keep->id, $edit, $edit);
+    }
+
+    /** Sleep ends a fact a newer one replaced, by itself, and records the edit. */
+    private function endReplaced(Fact $new, Fact $old): ?string {
+        if ($this->edits === null || !$this->store->endFact($old->id, sprintf(t('app.consolidation.auto_conflict_reason'), $new->id))) {
+            return null;
+        }
+        $this->autoLeft--;
+        $edit = $this->edits->record(SleepEdit::CONFLICT, $new->id, null, $old->id, mb_strlen($old->text));
+        return sprintf(t('app.consolidation.auto_conflict'), $old->id, self::cut($old->text), $new->id, self::cut($new->text), $edit, $edit);
+    }
+
+    /** Sleep merges two facts by itself: the kept one gets the text (a new version), the other ends. */
+    private function autoMerge(Fact $keep, Fact $drop, string $text): ?string {
+        if ($this->edits === null) {
+            return null;
+        }
+        $keys = array_values(array_unique([...$this->proposals->keysOf($text, [...$keep->words, ...$drop->words]), ...$keep->keys, ...$drop->keys]));
+        $changed = $this->store->changeFact($keep->id, $text, $keys, sprintf(t('app.consolidation.auto_merge_reason'), $drop->id), Proposal::SLEEP, array_values(array_unique([...$keep->words, ...$drop->words])));
+        if ($changed === null) {
+            return null;
+        }
+        $this->store->endFact($drop->id, sprintf(t('app.consolidation.auto_merge_reason'), $keep->id));
+        $this->autoLeft--;
+        $edit = $this->edits->record(SleepEdit::MERGE, $keep->id, $changed->version, $drop->id, mb_strlen($drop->text));
+        return sprintf(t('app.consolidation.auto_merge'), $keep->id, $drop->id, self::cut($text), $edit, $edit);
+    }
+
+    /**
+     * Undoes an edit sleep made by itself: the ended fact holds again, a merged one gets its text back. A kept fact that
+     * changed since is not overwritten.
+     *
+     * spec: brief/memory.md#постоянное-разрешение
+     */
+    public function undo(int $id): string {
+        $edit = $this->edits?->find($id);
+        if ($this->edits === null || $edit === null || $edit->undone) {
+            return sprintf(t('app.consolidation.undo_none'), $id);
+        }
+        if ($edit->kind === SleepEdit::MERGE && $edit->kept !== null) {
+            $kept = $this->store->fact($edit->kept);
+            $before = null;
+            foreach ($kept === null ? [] : $this->store->versions($kept->id) as $version) {
+                if ($version['version'] === (int) $edit->keptVersion - 1) {
+                    $before = $version['text'];
+                }
+            }
+            if ($kept === null || !$kept->active || $kept->version !== $edit->keptVersion || $before === null) {
+                return sprintf(t('app.consolidation.undo_moved_on'), $id, $edit->kept);
+            }
+            $this->store->changeFact($kept->id, $before, $this->proposals->keysOf($before, $kept->words), t('app.consolidation.undo_reason'), Proposal::SLEEP);
+        }
+        if ($edit->ended !== null) {
+            $this->store->restoreFact($edit->ended, t('app.consolidation.undo_reason'));
+        }
+        $this->edits->undo($id);
+        return sprintf(t('app.consolidation.undone'), $id);
     }
 
     /** @return array<int, true> facts a pending card already asks about */
@@ -344,7 +487,7 @@ final class Consolidation {
             return null;
         }
         try {
-            $proposal = $this->proposals->propose(Proposal::FORGET, $drop->id, '', sprintf(t($reason), $keep->id, self::cut($keep->text)), [$drop->scope], null, null);
+            $proposal = $this->proposals->propose(Proposal::FORGET, $drop->id, '', sprintf(t($reason), $keep->id, self::cut($keep->text)), [$drop->scope], null, null, bySleep: true);
         } catch (InvalidArgumentException) {
             return null;
         }

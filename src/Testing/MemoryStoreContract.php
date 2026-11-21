@@ -202,6 +202,19 @@ abstract class MemoryStoreContract extends AsyncTestCase {
         self::assertSame($keep->version, $after->factVersion);
     }
 
+    public function testAnEndedFactCanHoldAgain(): void {
+        // spec: brief/memory.md#постоянное-разрешение — what sleep ended by itself is restored, not written anew
+        $fact = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'копия', ['копи'], 0.5, Fact::AGENT, null);
+        self::assertNull($this->store->restoreFact($fact->id, 'рано'), 'an active fact is not restored');
+        $this->store->endFact($fact->id, 'копия');
+
+        $back = $this->store->restoreFact($fact->id, 'откат');
+
+        self::assertSame([true, 2, 'копия'], [$back?->active, $back?->version, $back?->text]);
+        $versions = $this->store->versions($fact->id);
+        self::assertSame('откат', end($versions)['reason'] ?? null);
+    }
+
     public function testEndedFactIsNotChangedAndApprovalCanBeReopened(): void {
         $fact = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'было', ['был'], 0.5, Fact::AGENT, null);
         $this->store->endFact($fact->id, 'всё');

@@ -268,6 +268,29 @@ final class PostgresMemoryStore implements MemoryStore {
         return is_float($trust) ? $trust : null;
     }
 
+    public function restoreFact(int $id, string $reason): ?Fact {
+        $transaction = $this->db->beginTransaction();
+        try {
+            $row = $transaction->execute(
+                "UPDATE facts SET status = 'active', version = version + 1, updated_at = now() WHERE id = ? AND status = 'ended' RETURNING " . self::FACT,
+                [$id],
+            )->fetchRow();
+            if ($row === null) {
+                $transaction->rollback();
+                return null;
+            }
+            $fact = self::fact_($row);
+            $transaction->execute('INSERT INTO fact_versions (fact_id, version, text, reason) VALUES (?, ?, ?, ?)', [$id, $fact->version, $fact->text, $reason]);
+            $transaction->commit();
+            return $fact;
+        } catch (Throwable $e) {
+            if ($transaction->isActive()) {
+                $transaction->rollback();
+            }
+            throw $e;
+        }
+    }
+
     public function endFact(int $id, string $reason): bool {
         $row = $this->db->execute("UPDATE facts SET status = 'ended', updated_at = now() WHERE id = ? AND status = 'active' RETURNING id", [$id])->fetchRow();
         if ($row === null) {

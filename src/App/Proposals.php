@@ -65,7 +65,7 @@ final class Proposals {
      * @param list<string> $keywords words to find the fact by, besides its own (synonyms, loans, names)
      * @throws InvalidArgumentException with the reason to show the model
      */
-    public function propose(string $kind, ?int $factId, string $text, string $reason, array $readable, ?int $principalId, ?int $runId, bool $aboutPerson = false, string $edit = 'all', string $oldText = '', bool $project = false, string $source = '', array $keywords = []): Proposal {
+    public function propose(string $kind, ?int $factId, string $text, string $reason, array $readable, ?int $principalId, ?int $runId, bool $aboutPerson = false, string $edit = 'all', string $oldText = '', bool $project = false, string $source = '', array $keywords = [], bool $bySleep = false): Proposal {
         $text = trim($text);
         $reason = trim($reason);
         if ($readable === []) {
@@ -132,7 +132,9 @@ final class Proposals {
         if (count($keywords) > self::MAX_KEYWORDS || array_filter($keywords, static fn(string $k): bool => mb_strlen($k) > 40) !== []) {
             throw new InvalidArgumentException(sprintf(t('app.proposals.too_many_keywords'), self::MAX_KEYWORDS));
         }
-        $proposal = $this->store->propose($kind, $kind === Proposal::ADD ? null : $factId, $scope, $text, mb_substr($reason, 0, 500), $principalId, $runId, $aboutPerson, $source === '' ? null : self::SOURCES[$source], $keywords);
+        // spec: brief/memory.md#постоянное-разрешение — a card of sleep is marked as sleep's: it goes to the owner and may be allowed for good
+        $provenance = $bySleep ? Proposal::SLEEP : ($source === '' ? null : self::SOURCES[$source]);
+        $proposal = $this->store->propose($kind, $kind === Proposal::ADD ? null : $factId, $scope, $text, mb_substr($reason, 0, 500), $principalId, $runId, $aboutPerson, $provenance, $keywords);
         if ($kind !== Proposal::ADD) {
             return $proposal;
         }
@@ -164,7 +166,32 @@ final class Proposals {
         }
         $this->check($text, ContentScreen::FACT_MAX);
         $this->notForgotten($text);
-        return $this->store->propose(Proposal::MERGE, $keep->id, $keep->scope, $text, mb_substr(trim($reason), 0, 500), null, null, false, null, [], $drop->id, $keep->version, $drop->version);
+        return $this->store->propose(Proposal::MERGE, $keep->id, $keep->scope, $text, mb_substr(trim($reason), 0, 500), null, null, false, Proposal::SLEEP, [], $drop->id, $keep->version, $drop->version);
+    }
+
+    /**
+     * Why a text may not be a fact (a secret, too long, a text the owner had forgotten); null — it may.
+     */
+    public function problem(string $text): ?string {
+        $problem = $this->screen->problem(trim($text), ContentScreen::FACT_MAX);
+        if ($problem !== null) {
+            return $problem;
+        }
+        return $this->store->forgotten($this->fingerprint(trim($text))) ? t('app.proposals.vladelets_velel_zabyt_etot_tekst') : null;
+    }
+
+    /**
+     * The keys of a text and of the words beside it, as a fact gets them.
+     *
+     * @param list<string> $words
+     * @return list<string>
+     */
+    public function keysOf(string $text, array $words = []): array {
+        $keys = $this->analyzer->keys($text);
+        foreach ($words as $word) {
+            $keys = [...$keys, ...$this->analyzer->keys($word)];
+        }
+        return array_values(array_unique($keys));
     }
 
     /**
@@ -250,11 +277,7 @@ final class Proposals {
      * @return list<string>
      */
     private function keys(Proposal $proposal): array {
-        $keys = $this->analyzer->keys($proposal->text);
-        foreach ($proposal->keywords as $word) {
-            $keys = [...$keys, ...$this->analyzer->keys($word)];
-        }
-        return array_values(array_unique($keys));
+        return $this->keysOf($proposal->text, $proposal->keywords);
     }
 
     /**
