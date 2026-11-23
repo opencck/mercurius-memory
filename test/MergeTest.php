@@ -51,6 +51,17 @@ final class MergeTest extends TestCase {
         self::assertSame(MergeGuard::EMPTY, MergeGuard::problem($keep, $drop, '  '));
     }
 
+    public function testTheGuardRefusesANegationLostOrAdded(): void {
+        // spec: brief/memory.md#слияние — «не любит» must not become «любит»: the code checks negations too
+        $keep = $this->add('Владелец не любит острое');
+        $drop = $this->add('Владелец любит тайскую кухню, но острое не ест');
+
+        self::assertSame(MergeGuard::NEGATION, MergeGuard::problem($keep, $drop, 'Владелец любит острое и тайскую кухню'));
+        self::assertNull(MergeGuard::problem($keep, $drop, 'Владелец не любит острое и не ест его, но любит тайскую кухню'));
+        $plain = $this->add('Владелец любит тайскую кухню');
+        self::assertSame(MergeGuard::NEGATION, MergeGuard::problem($plain, $this->add('Владелец часто ест тайскую кухню'), 'Владелец не любит тайскую кухню, но часто её ест'), 'added');
+    }
+
     public function testAnAcceptedMergeRewritesTheKeptFactAndForgetsTheOther(): void {
         $keep = $this->add('Сервер pve-01 стоит в Хельсинки');
         $drop = $this->add('У pve-01 128 ГБ оперативной памяти');

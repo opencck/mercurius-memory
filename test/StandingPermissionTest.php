@@ -10,6 +10,7 @@ use Mercurius\Memory\App\LossGuard;
 use Mercurius\Memory\App\Proposals;
 use Mercurius\Memory\Domain\ContentScreen;
 use Mercurius\Memory\Domain\Fact;
+use Mercurius\Memory\Domain\MergeVerifier;
 use Mercurius\Memory\Domain\Proposal;
 use Mercurius\Memory\Domain\SleepEdit;
 use Mercurius\Memory\Domain\SleepJudge;
@@ -53,19 +54,28 @@ final class StandingPermissionTest extends TestCase {
     /**
      * @param (Closure(Fact, Fact): ?Verdict)|null $say
      * @param list<?string> $texts
+     * @param ?bool $checked what the second model says of every merged text; null — there is no second model
      */
-    private function sleep(?Closure $say = null, array $texts = []): Consolidation {
+    private function sleep(?Closure $say = null, array $texts = [], ?bool $checked = true): Consolidation {
         $consolidation = new Consolidation($this->store, new Proposals($this->store, $this->analyzer, new ContentScreen(), 'k'), new InMemoryConsolidationJournal(), function (Proposal $p): bool {
             $this->shown[] = $p;
             return true;
         }, static fn(string $t): bool => true);
         if ($say !== null) {
-            $model = new class($say, $texts) implements SleepJudge, SleepMerger {
+            $model = new class($say, $texts, $checked) implements SleepJudge, SleepMerger, MergeVerifier {
+                /** @var list<array{Fact, Fact, string}> */
+                public array $verified = [];
+
                 /**
                  * @param Closure(Fact, Fact): ?Verdict $say
                  * @param list<?string> $texts
                  */
-                public function __construct(private readonly Closure $say, private readonly array $texts) {}
+                public function __construct(private readonly Closure $say, private readonly array $texts, private readonly ?bool $checked) {}
+
+                public function verify(array $merges): array {
+                    $this->verified = [...$this->verified, ...$merges];
+                    return array_fill(0, count($merges), $this->checked);
+                }
 
                 public function judge(array $pairs): array {
                     return array_map(fn(array $p): ?Verdict => ($this->say)($p[0], $p[1]), $pairs);
@@ -82,6 +92,7 @@ final class StandingPermissionTest extends TestCase {
             };
             $consolidation->useJudge($model);
             $consolidation->useMerger($model);
+            $consolidation->useVerifier($model);
         }
         $consolidation->useStandingPermission(fn(): array => $this->allowed, $this->edits);
         return $consolidation;
@@ -162,6 +173,34 @@ final class StandingPermissionTest extends TestCase {
         $sleep->undo(1);
         self::assertSame($before, $this->store->fact($kept)?->text, 'the text before the merge is back');
         self::assertTrue($this->store->fact($ended)?->active);
+    }
+
+    public function testWithoutASecondModelASureMergeIsOnlyACard(): void {
+        // spec: brief/memory.md#постоянное-разрешение — a merge nobody else checked is never made by sleep itself
+        $this->add('Сервер pve-01 стоит в Хельсинки, в стойке у окна');
+        $this->add('Сервер pve-01 стоит в Хельсинки, у него 128 ГБ памяти');
+        $this->allowed = [SleepEdit::MERGE];
+        $merged = 'Сервер pve-01 стоит в Хельсинки, в стойке у окна, у него 128 ГБ памяти';
+
+        $this->sleep(static fn(): Verdict => new Verdict(Verdict::ADDS_DETAIL, 0.9), [$merged], null)->run(true);
+
+        self::assertNull($this->edits->find(1), 'not made by itself');
+        self::assertCount(1, $this->shown);
+        self::assertSame(Proposal::MERGE, $this->shown[0]->kind);
+    }
+
+    public function testAMergeTheSecondModelRefusesIsNeitherMadeNorShown(): void {
+        // spec: brief/memory.md#слияние — the second model says a statement of a fact was lost or changed
+        $this->add('Сервер pve-01 стоит в Хельсинки, в стойке у окна');
+        $this->add('Сервер pve-01 стоит в Хельсинки, у него 128 ГБ памяти');
+        $this->allowed = [SleepEdit::MERGE];
+        $merged = 'Сервер pve-01 стоит в Хельсинки, в стойке у окна, у него 128 ГБ памяти';
+
+        $report = $this->sleep(static fn(): Verdict => new Verdict(Verdict::ADDS_DETAIL, 0.9), [$merged], false)->run(true);
+
+        self::assertNull($this->edits->find(1));
+        self::assertSame([], $this->shown);
+        self::assertStringContainsString(sprintf(t('app.consolidation.merge_unverified'), 1), $report);
     }
 
     public function testUndoDoesNotOverwriteAFactChangedAfterTheMerge(): void {

@@ -6,11 +6,13 @@ namespace Mercurius\Memory\App;
 
 use Mercurius\Memory\Domain\ContentScreen;
 use Mercurius\Memory\Domain\Fact;
+use Mercurius\Memory\Domain\TextAnalyzer;
 
 /**
  * The code's check of a text the model of sleep wrote for two facts: every number and identifier of both is in it,
- * nothing of the kind is added, it is not much longer than the facts together nor longer than a fact may be, and it
- * keeps the script of the fact that stays. The model writes, the code decides whether the text may reach the owner's card.
+ * nothing of the kind is added, it is not much longer than the facts together nor longer than a fact may be, it
+ * keeps the script of the fact that stays, and it negates exactly what the two facts negate («не любит» does not become
+ * «любит»). The model writes, the code decides whether the text may reach the owner's card.
  *
  * spec: brief/memory.md#слияние
  */
@@ -20,6 +22,7 @@ final class MergeGuard {
     public const LONG = 'long';
     public const SCRIPT = 'script';
     public const EMPTY = 'empty';
+    public const NEGATION = 'negation';
     /** characters over both facts a merged text may take: the words that join them */
     public const SLACK = 40;
 
@@ -43,6 +46,14 @@ final class MergeGuard {
         }
         if (self::script($text) !== self::script($keep->text)) {
             return self::SCRIPT;
+        }
+        // the words the dictionaries of negation already know (Consolidation finds conflicts by them): free, and it
+        // catches what a model of sleep may drop in a retelling
+        $analyzer = new TextAnalyzer();
+        $negated = array_fill_keys([...$analyzer->negated($keep->text), ...$analyzer->negated($drop->text)], true);
+        $after = array_fill_keys($analyzer->negated($text), true);
+        if (array_diff_key($negated, $after) !== [] || array_diff_key($after, $negated) !== []) {
+            return self::NEGATION;
         }
         return null;
     }

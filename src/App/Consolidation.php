@@ -14,6 +14,7 @@ use Mercurius\Memory\Domain\SleepEdit;
 use Mercurius\Memory\Domain\SleepEdits;
 use Mercurius\Memory\Domain\SleepJudge;
 use Mercurius\Memory\Domain\SleepMerger;
+use Mercurius\Memory\Domain\MergeVerifier;
 use Mercurius\Memory\Domain\TextAnalyzer;
 use Mercurius\Memory\Domain\Verdict;
 
@@ -55,6 +56,7 @@ final class Consolidation {
     private readonly Closure $now;
     private ?SleepJudge $judge = null;
     private ?SleepMerger $merger = null;
+    private ?MergeVerifier $verifier = null;
     private ?Enrichment $enrichment = null;
     /** @var (Closure(): list<string>)|null the kinds of edits the owner let sleep make by itself */
     private ?Closure $allowed = null;
@@ -96,6 +98,15 @@ final class Consolidation {
      *
      * spec: brief/memory.md#слияние
      */
+    /**
+     * Another model checks every merged text the code let through.
+     *
+     * spec: brief/memory.md#слияние
+     */
+    public function useVerifier(MergeVerifier $verifier): void {
+        $this->verifier = $verifier;
+    }
+
     public function useMerger(SleepMerger $merger): void {
         $this->merger = $merger;
     }
@@ -168,7 +179,7 @@ final class Consolidation {
         // spec: brief/memory.md#судья-пары — what the model of sleep cost goes into the journal and the report; spent()
         //       hands over what was spent since it was asked last, so a model that is judge and merger counts once
         [$calls, $tokens, $cost] = [0, 0, 0.0];
-        foreach ([$this->judge, $this->merger, $this->enrichment] as $model) {
+        foreach ([$this->judge, $this->merger, $this->verifier, $this->enrichment] as $model) {
             [$c, $t, $d] = $model?->spent() ?? [0, 0, 0.0];
             [$calls, $tokens, $cost] = [$calls + $c, $tokens + $t, $cost + $d];
         }
@@ -355,6 +366,7 @@ final class Consolidation {
         $texts = $this->merger->merge($pairs);
         $lines = [];
         $refused = 0;
+        $passed = [];
         foreach ($pairs as $i => [$keep, $drop]) {
             $text = $texts[$i] ?? null;
             if ($text === null) {
@@ -364,8 +376,20 @@ final class Consolidation {
                 $refused++;
                 continue;
             }
-            // spec: brief/memory.md#постоянное-разрешение — a merge sleep is sure of is made by itself when the owner allowed it
-            if (($sure[$i] ?? false) && $this->autoLeft > 0) {
+            $passed[$i] = [$keep, $drop, $text];
+        }
+        // spec: brief/memory.md#слияние — another model reads what the code let through; what it refuses is not shown
+        $checks = $passed === [] || $this->verifier === null ? [] : array_combine(array_keys($passed), array_pad($this->verifier->verify(array_values($passed)), count($passed), null));
+        $unverified = 0;
+        foreach ($passed as $i => [$keep, $drop, $text]) {
+            $checked = $checks[$i] ?? null;
+            if ($checked === false) {
+                $unverified++;
+                continue;
+            }
+            // spec: brief/memory.md#постоянное-разрешение — a merge sleep is sure of is made by itself when the owner
+            //       allowed it and another model found nothing lost; one nobody else checked goes to the owner
+            if ($checked === true && ($sure[$i] ?? false) && $this->autoLeft > 0) {
                 $line = $this->autoMerge($keep, $drop, $text);
                 if ($line !== null) {
                     $this->journal->shown('merge', min($keep->id, $drop->id), max($keep->id, $drop->id));
@@ -390,6 +414,9 @@ final class Consolidation {
         }
         if ($refused > 0) {
             $lines[] = sprintf(t('app.consolidation.merge_refused'), $refused);
+        }
+        if ($unverified > 0) {
+            $lines[] = sprintf(t('app.consolidation.merge_unverified'), $unverified);
         }
         return $lines;
     }
