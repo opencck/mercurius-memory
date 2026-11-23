@@ -37,6 +37,8 @@ Keep the correct one; for the wrong one use /forget <number> or ask me to change
   'app.consolidation.pamyat_nochnaya_proverka' => 'Memory: nightly check.
 
 ',
+  'app.loss_guard.probe_gone' => '⚠ Probe #%d “%s”: fact #%d is gone from memory (forgotten, ended or merged). Check /memory; /probe lists the probes.',
+  'app.loss_guard.probe_lost' => '⚠ Probe #%d “%s”: memory no longer finds fact #%d by this question. Check its text in /memory; /probe lists the probes.',
   'app.consolidation.pamyati_stalo_zametno_menshe_faktov' => '⚠ The memory has noticeably shrunk: facts were %d, now %d; characters were %d, now %d. If you did not forget facts yourself, check /memory.',
   'app.consolidation.provereno_faktov_zamechaniy_net' => 'Facts checked: %d. No remarks.',
   'app.consolidation.spelling_added' => 'Sleep: %s To remove — /aliases - <number>.',
