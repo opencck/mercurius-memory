@@ -30,6 +30,8 @@ Keep the correct one; for the wrong one use /forget <number> or ask me to change
   'app.consolidation.merge_card' => 'Facts #%d and #%d add to each other — proposed merging them (card #%d).',
   'app.consolidation.merge_reason' => 'Memory sleep: facts #%d and #%d speak of one thing and one adds to the other — one text instead of two.',
   'app.consolidation.merge_unverified' => 'Merges another model of sleep found to lose or change what the facts say, not shown: %d.',
+  'app.consolidation.noted' => 'Sleep wrote fact #%d in %s from the talk of the day: “%s”.',
+  'app.consolidation.note_reason' => 'sleep of the place: from the talk of the day',
   'app.consolidation.merge_refused' => 'Merged texts refused by the code\'s check: %d — no cards for them.',
   'app.consolidation.model_silent' => 'The model of sleep did not answer for most pairs: this night was settled by code alone.',
   'app.consolidation.model_spent' => 'Model of sleep: %d calls, %d tokens, $%.4f.',

@@ -50,14 +50,15 @@ final class Enrichment {
 
     /**
      * @param array<int, true> $busy facts a pending card asks about: they are left for another night
+     * @param (Closure(string): bool)|null $may whether the model may see facts of a scope (a project whose sleep is off may not)
      * @return array{int, int, list<string>} facts enriched, words added, lines about spellings added to the table
      */
-    public function run(array $busy = []): array {
+    public function run(array $busy = [], ?Closure $may = null): array {
         $translate = ($this->translate)();
         $wanted = $translate ? Fact::TRANSLATED : Fact::WORDS;
         $facts = array_values(array_filter(
             $this->store->unenriched($wanted, self::FACTS * 2),
-            static fn(Fact $f): bool => !isset($busy[$f->id]),
+            static fn(Fact $f): bool => !isset($busy[$f->id]) && ($may === null || $may($f->scope)),
         ));
         $facts = array_slice($facts, 0, self::FACTS);
         if ($facts === []) {

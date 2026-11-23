@@ -15,6 +15,7 @@ use Mercurius\Memory\Domain\SleepEdits;
 use Mercurius\Memory\Domain\SleepJudge;
 use Mercurius\Memory\Domain\SleepMerger;
 use Mercurius\Memory\Domain\MergeVerifier;
+use Mercurius\Memory\Domain\SleepNotes;
 use Mercurius\Memory\Domain\TextAnalyzer;
 use Mercurius\Memory\Domain\Verdict;
 
@@ -57,6 +58,11 @@ final class Consolidation {
     private ?SleepJudge $judge = null;
     private ?SleepMerger $merger = null;
     private ?MergeVerifier $verifier = null;
+    private ?SleepNotes $notes = null;
+    /** @var (Closure(string): bool)|null whether the model of sleep may work on the facts of a scope */
+    private ?Closure $may = null;
+    /** @var (Closure(): array<string, string>)|null the talk of the day by the scope of its place */
+    private ?Closure $talk = null;
     private ?Enrichment $enrichment = null;
     /** @var (Closure(): list<string>)|null the kinds of edits the owner let sleep make by itself */
     private ?Closure $allowed = null;
@@ -98,6 +104,24 @@ final class Consolidation {
      *
      * spec: brief/memory.md#слияние
      */
+    /** new facts a place gets from one night: the talk of a day holds a few lasting things, not a retelling */
+    public const NOTES_PER_PLACE = 5;
+
+    /**
+     * Sleep of places: the model works on the facts of a scope only while $may says so (a project's sleep is on), and
+     * reads the talk of the day of such a place to write its facts. Nothing but facts is changed.
+     *
+     * spec: brief/memory.md#сон-проекта
+     *
+     * @param Closure(string): bool $may
+     * @param Closure(): array<string, string> $talk scope => the messages of the day there, oldest first
+     */
+    public function usePlaces(SleepNotes $notes, Closure $may, Closure $talk): void {
+        $this->notes = $notes;
+        $this->may = $may;
+        $this->talk = $talk;
+    }
+
     /**
      * Another model checks every merged text the code let through.
      *
@@ -151,14 +175,21 @@ final class Consolidation {
         $changed = $last === null || $last['facts'] !== $count || $last['chars'] !== $chars
             || array_filter($facts, static fn(Fact $f): bool => $f->updatedAt >= $last['at']) !== [];
         // spec: brief/memory.md#ночное-обогащение — words for facts that wait for them; a night that added some is a changed one
-        [$enriched, $words, $spellings] = $this->enrichment?->run($this->busy()) ?? [0, 0, []];
-        $changed = $changed || $enriched > 0;
+        [$enriched, $words, $spellings] = $this->enrichment?->run($this->busy(), $this->may) ?? [0, 0, []];
+        // spec: brief/memory.md#сон-проекта — what a sleeping place said today becomes its facts before the check
+        $noted = $this->noted();
+        $changed = $changed || $enriched > 0 || $noted !== [];
+        if ($noted !== []) {
+            $facts = $this->store->active(self::FACTS);
+            $count = count($facts);
+            $chars = array_sum(array_map(static fn(Fact $f): int => mb_strlen($f->text), $facts));
+        }
         if (!$force && !$changed) {
             $this->journal->save(ConsolidationJournal::SKIPPED, $count, $chars, self::ms($started), [], $this->enrichment?->spent()[0] ?? 0);
             return t('app.consolidation.pamyat_ne_menyalas_proveryat_nechego');
         }
 
-        $report = [];
+        $report = $noted;
         $this->allowedNow = $this->allowed === null || $this->edits === null ? [] : ($this->allowed)();
         $this->autoLeft = self::AUTO_PER_NIGHT;
         /** @var list<array{string, int, int}> $pending findings that count as shown once the report is delivered */
@@ -179,7 +210,7 @@ final class Consolidation {
         // spec: brief/memory.md#судья-пары — what the model of sleep cost goes into the journal and the report; spent()
         //       hands over what was spent since it was asked last, so a model that is judge and merger counts once
         [$calls, $tokens, $cost] = [0, 0, 0.0];
-        foreach ([$this->judge, $this->merger, $this->verifier, $this->enrichment] as $model) {
+        foreach ([$this->judge, $this->merger, $this->verifier, $this->enrichment, $this->notes] as $model) {
             [$c, $t, $d] = $model?->spent() ?? [0, 0, 0.0];
             [$calls, $tokens, $cost] = [$calls + $c, $tokens + $t, $cost + $d];
         }
@@ -271,6 +302,11 @@ final class Consolidation {
             return [[], []];
         }
         $gray = (new GrayZone())->pairs($facts);
+        // spec: brief/memory.md#сон-проекта — a pair of a place whose sleep is off is left to the code
+        if ($this->may !== null) {
+            $may = $this->may;
+            $gray = array_values(array_filter($gray, static fn(array $p): bool => $may($p[0]->scope) && $may($p[1]->scope)));
+        }
         if ($gray === []) {
             return [[], []];
         }
@@ -446,6 +482,43 @@ final class Consolidation {
         $this->autoLeft--;
         $edit = $this->edits->record(SleepEdit::CONFLICT, $new->id, null, $old->id, mb_strlen($old->text));
         return sprintf(t('app.consolidation.auto_conflict'), $old->id, self::cut($old->text), $new->id, self::cut($new->text), $edit, $edit);
+    }
+
+    /**
+     * The facts the model of sleep writes from the talk of the day in each sleeping place: written at once, as the agent
+     * writes a new fact, marked as sleep's and named in the report, so the owner corrects after.
+     *
+     * @return list<string> lines of the report
+     */
+    private function noted(): array {
+        [$notes, $may, $talks] = [$this->notes, $this->may, $this->talk];
+        if ($notes === null || $may === null || $talks === null) {
+            return [];
+        }
+        $lines = [];
+        foreach ($talks() as $scope => $talk) {
+            if (trim($talk) === '' || !$may($scope)) {
+                continue;
+            }
+            $known = array_values(array_filter($this->store->active(self::FACTS), static fn(Fact $f): bool => $f->scope === $scope));
+            $written = 0;
+            foreach ($notes->notes($talk, $known) as [$text, $keywords]) {
+                $text = trim($text);
+                if ($text === '' || $written >= self::NOTES_PER_PLACE) {
+                    continue;
+                }
+                try {
+                    $proposal = $this->proposals->propose(Proposal::ADD, null, $text, t('app.consolidation.note_reason'), [$scope], null, null, keywords: $keywords, bySleep: true);
+                } catch (InvalidArgumentException) {
+                    continue;
+                }
+                if ($proposal->factId !== null) {
+                    $written++;
+                    $lines[] = sprintf(t('app.consolidation.noted'), $proposal->factId, $scope, self::cut($text));
+                }
+            }
+        }
+        return $lines;
     }
 
     /** Sleep merges two facts by itself: the kept one gets the text (a new version), the other ends. */

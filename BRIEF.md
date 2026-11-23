@@ -54,6 +54,7 @@
 | `src/App/Enrichment.php`, `src/Domain/SleepEnricher.php` | Ночные слова поиска для фактов: порт модели и проверка слов кодом; слова живут рядом с текстом (`Fact::$words`) (spec: brief/memory.md#ночное-обогащение) |
 | `src/App/MergeGuard.php`, `src/Domain/SleepMerger.php`, `src/Domain/MergeVerifier.php` | Слияние двух фактов: порт модели, которая пишет один текст, проверка этого текста кодом (числа, идентификаторы, письмо, отрицания) и порт второй модели, которая проверяет смысл (spec: brief/memory.md#слияние) |
 | `src/App/LossGuard.php`, `src/Domain/Probes.php`, `src/Domain/Probe.php` | Страж потерь: резкое уменьшение памяти и пробы владельца — вопросы, по которым поиск всегда должен находить свой факт (spec: brief/memory.md#пробы-владельца) |
+| `src/Domain/SleepNotes.php` | Сон места: порт модели, которая пишет факты места из бесед дня; `Consolidation::usePlaces` пускает модель к фактам области, только пока сон места включён (spec: brief/memory.md#сон-проекта) |
 | `src/App/Decision.php` | Итог решения владельца: предложение, изменилась ли память, что сказать |
 | `src/Infrastructure/` | `PostgresMemoryStore`, `PostgresConsolidationJournal`; `InMemoryMemoryStore`, `InMemoryConsolidationJournal` — для тестов и простых случаев |
 | `src/Testing/MemoryStoreContract.php` | Контрактный тест любого `MemoryStore`; приложение наследует его проверкой PostgreSQL |
