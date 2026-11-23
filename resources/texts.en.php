@@ -32,6 +32,8 @@ Keep the correct one; for the wrong one use /forget <number> or ask me to change
   'app.consolidation.merge_unverified' => 'Merges another model of sleep found to lose or change what the facts say, not shown: %d.',
   'app.consolidation.noted' => 'Sleep wrote fact #%d in %s from the talk of the day: “%s”.',
   'app.consolidation.note_reason' => 'sleep of the place: from the talk of the day',
+  'app.consolidation.findability' => 'Search finds %d of %d facts by their questions in other words (before the words of this night — %d); other facts among the first five per question: %.2f (before — %.2f).',
+  'app.consolidation.not_found' => 'Not found by their questions even after the words of two nights: %s — perhaps the text of the fact should say it otherwise.',
   'app.consolidation.merge_refused' => 'Merged texts refused by the code\'s check: %d — no cards for them.',
   'app.consolidation.model_silent' => 'The model of sleep did not answer for most pairs: this night was settled by code alone.',
   'app.consolidation.model_spent' => 'Model of sleep: %d calls, %d tokens, $%.4f.',

@@ -59,6 +59,7 @@ final class Consolidation {
     private ?SleepMerger $merger = null;
     private ?MergeVerifier $verifier = null;
     private ?SleepNotes $notes = null;
+    private ?Findability $findability = null;
     /** @var (Closure(string): bool)|null whether the model of sleep may work on the facts of a scope */
     private ?Closure $may = null;
     /** @var (Closure(): array<string, string>)|null the talk of the day by the scope of its place */
@@ -104,6 +105,11 @@ final class Consolidation {
      *
      * spec: brief/memory.md#слияние
      */
+    /** spec: brief/memory.md#самопроверка-поиска */
+    public function useFindability(Findability $findability): void {
+        $this->findability = $findability;
+    }
+
     /** new facts a place gets from one night: the talk of a day holds a few lasting things, not a retelling */
     public const NOTES_PER_PLACE = 5;
 
@@ -175,7 +181,21 @@ final class Consolidation {
         $changed = $last === null || $last['facts'] !== $count || $last['chars'] !== $chars
             || array_filter($facts, static fn(Fact $f): bool => $f->updatedAt >= $last['at']) !== [];
         // spec: brief/memory.md#ночное-обогащение — words for facts that wait for them; a night that added some is a changed one
-        [$enriched, $words, $spellings] = $this->enrichment?->run($this->busy(), $this->may) ?? [0, 0, []];
+        // spec: brief/memory.md#самопроверка-поиска — the questions of the facts the model may see, asked before the words
+        $may = $this->may;
+        $seen = $may === null ? $facts : array_values(array_filter($facts, static fn(Fact $f): bool => $may($f->scope)));
+        $this->findability?->prepare($seen);
+        $before = $this->findability?->measure($seen);
+        [$enriched, $words, $spellings] = $this->enrichment?->run($this->busy(), $this->may, $before[3] ?? []) ?? [0, 0, []];
+        $findability = [];
+        if ($this->findability !== null && $before !== null && $before[1] > 0) {
+            $after = $this->findability->measure($seen);
+            $findability[] = sprintf(t('app.consolidation.findability'), $after[0], $after[1], $before[0], $after[2], $before[2]);
+            $named = $this->findability->settle($seen, $after[3]);
+            if ($named !== []) {
+                $findability[] = sprintf(t('app.consolidation.not_found'), implode(', ', array_map(static fn(int $id): string => '#' . $id, $named)));
+            }
+        }
         // spec: brief/memory.md#сон-проекта — what a sleeping place said today becomes its facts before the check
         $noted = $this->noted();
         $changed = $changed || $enriched > 0 || $noted !== [];
@@ -205,12 +225,12 @@ final class Consolidation {
         if ($enriched > 0) {
             $report[] = sprintf(t('app.consolidation.enriched'), $enriched, $words);
         }
-        array_push($report, ...$spellings);
+        array_push($report, ...$spellings, ...$findability);
 
         // spec: brief/memory.md#судья-пары — what the model of sleep cost goes into the journal and the report; spent()
         //       hands over what was spent since it was asked last, so a model that is judge and merger counts once
         [$calls, $tokens, $cost] = [0, 0, 0.0];
-        foreach ([$this->judge, $this->merger, $this->verifier, $this->enrichment, $this->notes] as $model) {
+        foreach ([$this->judge, $this->merger, $this->verifier, $this->enrichment, $this->notes, $this->findability] as $model) {
             [$c, $t, $d] = $model?->spent() ?? [0, 0, 0.0];
             [$calls, $tokens, $cost] = [$calls + $c, $tokens + $t, $cost + $d];
         }
