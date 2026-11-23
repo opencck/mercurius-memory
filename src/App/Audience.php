@@ -21,7 +21,13 @@ final class Audience {
         $chat = self::chat($channel, $chatId);
         $scopes = !$privateChat ? [$chat] : ($owner ? [self::OWNER, $chat] : [self::principal($principalId), $chat]);
         if ($projectId !== null) {
-            $scopes[] = self::project($projectId);
+            // spec: brief/memory.md#проекты-и-отношение-участника-к-проекту — in a group or a topic of a project a new
+            //       fact is the project's; a private chat keeps the person's own memory first
+            if ($privateChat) {
+                $scopes[] = self::project($projectId);
+            } else {
+                array_unshift($scopes, self::project($projectId));
+            }
         }
         return $scopes;
     }

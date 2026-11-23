@@ -24,7 +24,8 @@ final class AudienceTest extends TestCase {
     public function testTheActiveProjectOfTheChatIsReadToo(): void {
         // spec: brief/memory.md#проекты-и-отношение-участника-к-проекту — facts of a project, wherever it is worked on
         self::assertSame(['owner', 'chat:telegram:5', 'project:12'], Audience::scopes(true, 1, 'telegram', '5', true, 12));
-        self::assertSame(['chat:telegram:-100', 'project:12'], Audience::scopes(false, 7, 'telegram', '-100', false, 12));
+        // a group or a forum topic of a project: what is said there is the project's, so a new fact goes to it first
+        self::assertSame(['project:12', 'chat:telegram:-100'], Audience::scopes(false, 7, 'telegram', '-100', false, 12));
         self::assertSame('project:12', Audience::project(12));
     }
 }
