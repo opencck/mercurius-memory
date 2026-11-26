@@ -323,13 +323,39 @@ final class InMemoryMemoryStore implements MemoryStore {
     /** @var array<string, bool> "run:fact" => helpful; any recalled fact counts as given to any run */
     private array $marks = [];
 
-    public function markHelpful(int $runId, int $factId, bool $helpful): bool {
+    public function markHelpful(int $runId, int $factId, bool $helpful, ?string $reason = null, ?string $note = null): bool {
         $key = $runId . ':' . $factId;
         if (isset($this->marks[$key]) || !in_array($factId, array_map(static fn(array $r): int => $r[1], $this->recalls), true)) {
             return false;
         }
         $this->marks[$key] = $helpful;
+        if (!$helpful && $reason !== null) {
+            $this->reasonsOf[$factId][$reason] = ($this->reasonsOf[$factId][$reason] ?? 0) + 1;
+        }
         return true;
+    }
+
+    /** @var array<int, array<string, int>> */
+    private array $reasonsOf = [];
+    /** @var list<array{int, array<string, list<int>>}> conversation, stages */
+    public array $stagesKept = [];
+
+    public function reasons(int $factId): array {
+        return $this->reasonsOf[$factId] ?? [];
+    }
+
+    public function markStages(int $conversationId, array $stages): void {
+        $this->stagesKept[] = [$conversationId, $stages];
+    }
+
+    /** Runs are not known here. */
+    public function stages(int $runId): array {
+        return [];
+    }
+
+    /** Nothing here has a time. */
+    public function prune(int $days, int $outcomeDays): int {
+        return 0;
     }
 
     public function usage(int $factId): array {

@@ -31,6 +31,14 @@ final class Recall {
     public const WINDOW = 20;
     /** turns of a conversation a version of a fact is not given again for */
     public const REPEAT_TURNS = 5;
+    /**
+     * why a fact given did not help, a short list (holographic-memory: the task-outcome journal): another person or
+     * thing, an old version, not about the question, not enough to answer by, the answer was wrong for another reason
+     */
+    public const REASONS = ['wrong_entity', 'stale_version', 'irrelevant', 'missing_evidence', 'answer_error', 'other'];
+
+    /** @var array<string, list<int>> the step each candidate of the last recall fell out at */
+    private array $stages = [];
     private const CANDIDATES = 100;
     private const HALF_LIFE_DAYS = 180.0;
     /** the weight of HRR: the setting multiplies TIE, so the vector only orders facts the words scored nearly alike */
@@ -85,10 +93,16 @@ final class Recall {
         // spec: brief/memory.md#как-сделано-области-и-факты — not again for REPEAT_TURNS turns, each version on its own:
         //       a changed fact is given at once (holographic-memory: the revision)
         $given = $conversationId === null ? [] : $this->store->recalledVersions($conversationId, self::REPEAT_TURNS);
+        $this->stages = [];
         $found = $this->byWords($message, $scopes, $given, $budget);
         // spec: brief/memory.md#факты — and up to two facts of a name the message mentions, without shared words
         $left = $budget - array_sum(array_map(static fn(Fact $f): int => mb_strlen(self::line($f)) + 1, $found));
         $found = [...$found, ...$this->named($message, $scopes, $given, $found, $left, $selfNames)];
+        // spec: brief/memory.md#журнал-выдачи-причины-и-срок — at which step each candidate fell out, numbers only
+        $stages = $this->stages();
+        if ($conversationId !== null && $stages !== []) {
+            $this->store->markStages($conversationId, $stages);
+        }
         if ($conversationId !== null && $found !== []) {
             // spec: brief/operations.md#квитанция-извлечения-памяти — the version given goes into the receipt of recall
             $versions = [];
@@ -147,12 +161,20 @@ final class Recall {
             //       without shared words are noise beside an answer
             $nameKeys = $this->analyzer->keys($name);
             if ($nameKeys !== [] && array_filter($nameKeys, static fn(string $k): bool => isset($spoken[$k]) || isset($own[$k])) !== []) {
+                if (array_filter($nameKeys, static fn(string $k): bool => isset($own[$k])) !== []) {
+                    $this->stages['self_name'] ??= [];
+                }
                 continue;
             }
             foreach ($this->related($name, $scopes, self::ENTITY_FACTS * 3) as $fact) {
-                if (!isset($taken[$fact->id]) && !self::wasGiven($given, $fact)) {
-                    $candidates[$fact->id] = $fact;
+                if (isset($taken[$fact->id])) {
+                    continue;
                 }
+                if (self::wasGiven($given, $fact)) {
+                    $this->stages['repeat'][] = $fact->id;
+                    continue;
+                }
+                $candidates[$fact->id] = $fact;
             }
         }
         usort($candidates, static fn(Fact $a, Fact $b): int => [$b->trust, $b->id] <=> [$a->trust, $a->id]);
@@ -259,7 +281,12 @@ final class Recall {
         $passed = [];
         // spec: brief/memory.md#оценка-и-отбор-фактов — the candidates are the facts that match the most, weighed as the coverage is
         foreach ($this->store->candidates($scopes, [...$known, ...$knownRoots], self::CANDIDATES, $weights + $rootWeights) as $fact) {
-            if (self::wasGiven($given, $fact) || $fact->trust < self::MIN_TRUST - 1e-9) {
+            if (self::wasGiven($given, $fact)) {
+                $this->stages['repeat'][] = $fact->id;
+                continue;
+            }
+            if ($fact->trust < self::MIN_TRUST - 1e-9) {
+                $this->stages['trust'][] = $fact->id;
                 continue;
             }
             $holds = array_flip($fact->keys);
@@ -291,6 +318,7 @@ final class Recall {
                 }
             }
             if ($exact === 0) {
+                $this->stages['root_only'][] = $fact->id;
                 continue;
             }
             $coverage = min(1.0, $covered / $sum);
@@ -298,6 +326,7 @@ final class Recall {
             // about none of them.
             $lone = count($terms) > 1 && $exact + $rooted === 1 && $frequent;
             if (!$identifier && ($coverage < self::MIN_COVERAGE || $lone)) {
+                $this->stages[$lone ? 'lone_word' : 'coverage'][] = $fact->id;
                 continue;
             }
             $age = (float) max(0, $now - $fact->updatedAt) / 86400.0;
@@ -305,6 +334,11 @@ final class Recall {
         }
         // spec: brief/memory.md#оценка-и-отбор-фактов — a fact far below the best one is not the answer, whatever let it through
         $best = $passed === [] ? 0.0 : max(array_map(static fn(array $p): float => $p[1], $passed));
+        foreach ($passed as [$fact, $relevance]) {
+            if ($relevance < self::CUT * $best - 1e-9) {
+                $this->stages['below_best'][] = $fact->id;
+            }
+        }
         $passed = array_values(array_filter($passed, static fn(array $p): bool => $p[1] >= self::CUT * $best - 1e-9));
         $hrr = [];
         if ($this->hrrWeight > 0.0 && count($passed) > 1) {
@@ -324,12 +358,23 @@ final class Recall {
         foreach ($scored as [$fact]) {
             $length = mb_strlen(self::line($fact)) + 1;
             if ($length > $left) {
+                $this->stages['budget'][] = $fact->id;
                 continue;
             }
             $left -= $length;
             $found[] = $fact;
         }
         return $found;
+    }
+
+    /**
+     * The step each candidate of the last recall fell out at: repeat, trust, root_only, coverage, lone_word, below_best,
+     * budget; self_name — a name of the owner or the writer was not followed. Numbers of facts only.
+     *
+     * @return array<string, list<int>>
+     */
+    public function stages(): array {
+        return array_map(static fn(array $ids): array => array_values(array_unique($ids)), $this->stages);
     }
 
     /**

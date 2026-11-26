@@ -421,12 +421,62 @@ final class PostgresMemoryStore implements MemoryStore {
         return $rows;
     }
 
-    public function markHelpful(int $runId, int $factId, bool $helpful): bool {
+    public function markHelpful(int $runId, int $factId, bool $helpful, ?string $reason = null, ?string $note = null): bool {
         $row = $this->db->execute(
-            'UPDATE memory_recalls SET helpful = ? WHERE id = (SELECT id FROM memory_recalls WHERE run_id = ? AND fact_id = ? AND helpful IS NULL ORDER BY id LIMIT 1) RETURNING id',
-            [$helpful, $runId, $factId],
+            'UPDATE memory_recalls SET helpful = ?, reason = ?, note = ? WHERE id = (SELECT id FROM memory_recalls WHERE run_id = ? AND fact_id = ? AND helpful IS NULL ORDER BY id LIMIT 1) RETURNING id',
+            [$helpful, $helpful ? null : $reason, $helpful || $note === null ? null : mb_substr($note, 0, 200), $runId, $factId],
         )->fetchRow();
         return $row !== null;
+    }
+
+    public function reasons(int $factId): array {
+        $found = [];
+        foreach ($this->db->execute('SELECT reason, count(*) AS n FROM memory_recalls WHERE fact_id = ? AND reason IS NOT NULL GROUP BY reason ORDER BY reason', [$factId]) as $row) {
+            $found[self::str($row, 'reason')] = self::int($row, 'n');
+        }
+        return $found;
+    }
+
+    public function markStages(int $conversationId, array $stages): void {
+        $this->db->execute('INSERT INTO memory_recall_stages (conversation_id, stages) VALUES (?, ?::jsonb)', [$conversationId, json_encode($stages, JSON_THROW_ON_ERROR)]);
+    }
+
+    public function stages(int $runId): array {
+        $found = [];
+        foreach ($this->db->execute('SELECT stages::text AS stages FROM memory_recall_stages WHERE run_id = ? ORDER BY id', [$runId]) as $row) {
+            /** @var mixed $stages */
+            $stages = json_decode(self::str($row, 'stages'), true, 4, JSON_THROW_ON_ERROR);
+            if (!is_array($stages)) {
+                continue;
+            }
+            /** @psalm-suppress MixedAssignment the steps come from JSON: each value is checked below */
+            foreach ($stages as $step => $ids) {
+                if (is_string($step) && is_array($ids)) {
+                    /** @psalm-suppress MixedAssignment */
+                    foreach ($ids as $id) {
+                        if (is_int($id)) {
+                            $found[$step][] = $id;
+                        }
+                    }
+                }
+            }
+        }
+        return $found;
+    }
+
+    public function prune(int $days, int $outcomeDays): int {
+        $recalls = $this->db->execute(
+            "DELETE FROM memory_recalls WHERE (helpful IS NULL AND created_at < now() - make_interval(days => ?)) OR created_at < now() - make_interval(days => ?) RETURNING id",
+            [$days, $outcomeDays],
+        );
+        $removed = 0;
+        foreach ($recalls as $row) {
+            $removed++;
+        }
+        foreach ($this->db->execute('DELETE FROM memory_recall_stages WHERE created_at < now() - make_interval(days => ?) RETURNING id', [$days]) as $row) {
+            $removed++;
+        }
+        return $removed;
     }
 
     public function usage(int $factId): array {

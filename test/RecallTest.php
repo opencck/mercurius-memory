@@ -86,6 +86,24 @@ final class RecallTest extends TestCase {
         self::assertSame(['Сервер pve-01 переехал в Фалькенштейн'], self::texts($this->recall->find($question, ['owner'], 30)), 'after the window the fact may come again');
     }
 
+    /**
+     * spec: brief/memory.md#журнал-выдачи-причины-и-срок — at which step each candidate fell out is kept with the recall,
+     * numbers only; why a fact did not help is kept from a short list
+     */
+    public function testTheStepsOfTheSelectionAndTheReasonsAreKept(): void {
+        $question = 'Где стоит сервер pve-01?';
+        $first = $this->recall->find($question, ['owner'], 40);
+        $this->recall->find($question, ['owner'], 40);
+
+        self::assertSame(['repeat' => [$first[0]->id]], $this->recall->stages(), 'the second time it fell out as a repeat');
+        self::assertSame([40, ['repeat' => [$first[0]->id]]], end($this->store->stagesKept));
+        self::assertStringNotContainsString('Хельсинки', (string) json_encode($this->store->stagesKept), 'no text of facts');
+
+        self::assertTrue($this->store->markHelpful(1, $first[0]->id, false, 'stale_version', 'переехал'));
+        self::assertSame(['stale_version' => 1], $this->store->reasons($first[0]->id));
+        self::assertContains('stale_version', Recall::REASONS);
+    }
+
     public function testASameRootWordHelpsAnotherWordFindAFactButNeverAlone(): void {
         // spec: brief/memory.md#ключи-и-однокоренные — a root match counts 0.6 of an exact one and never recalls a fact alone
         $this->add('owner', 'Работает ночью в офисе');

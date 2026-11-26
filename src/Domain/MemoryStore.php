@@ -227,7 +227,35 @@ interface MemoryStore {
      *
      * spec: brief/memory.md#как-сделано-области-и-факты
      */
-    public function markHelpful(int $runId, int $factId, bool $helpful): bool;
+    public function markHelpful(int $runId, int $factId, bool $helpful, ?string $reason = null, ?string $note = null): bool;
+
+    /**
+     * Why the fact did not help, by the reasons of the agent's marks.
+     *
+     * spec: brief/memory.md#журнал-выдачи-причины-и-срок
+     *
+     * @return array<string, int> reason => how many times
+     */
+    public function reasons(int $factId): array;
+
+    /**
+     * Keeps at which step of the selection each candidate of a recall fell out: numbers of facts, no text. The run of
+     * the conversation takes them as it takes its recalls.
+     *
+     * @param array<string, list<int>> $stages step => facts
+     */
+    public function markStages(int $conversationId, array $stages): void;
+
+    /** @return array<string, list<int>> the steps the candidates of the run's recall fell out at */
+    public function stages(int $runId): array;
+
+    /**
+     * Removes old lines of the journal of recall: those without an outcome after $days days, those with one after
+     * $outcomeDays; the steps of selection after $days.
+     *
+     * @return int lines removed
+     */
+    public function prune(int $days, int $outcomeDays): int;
 
     /**
      * How a fact served: how many times it was given, and how many of those the agent marked as helping or not.
