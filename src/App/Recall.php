@@ -29,6 +29,8 @@ final class Recall {
     /** A match through a same-root word counts this much of an exact one. */
     public const ROOT_WEIGHT = 0.6;
     public const WINDOW = 20;
+    /** turns of a conversation a version of a fact is not given again for */
+    public const REPEAT_TURNS = 5;
     private const CANDIDATES = 100;
     private const HALF_LIFE_DAYS = 180.0;
     /** the weight of HRR: the setting multiplies TIE, so the vector only orders facts the words scored nearly alike */
@@ -80,7 +82,9 @@ final class Recall {
         if ($scopes === []) {
             return [];
         }
-        $given = $conversationId === null ? [] : array_flip($this->store->recalled($conversationId, self::WINDOW));
+        // spec: brief/memory.md#как-сделано-области-и-факты — not again for REPEAT_TURNS turns, each version on its own:
+        //       a changed fact is given at once (holographic-memory: the revision)
+        $given = $conversationId === null ? [] : $this->store->recalledVersions($conversationId, self::REPEAT_TURNS);
         $found = $this->byWords($message, $scopes, $given, $budget);
         // spec: brief/memory.md#факты — and up to two facts of a name the message mentions, without shared words
         $left = $budget - array_sum(array_map(static fn(Fact $f): int => mb_strlen(self::line($f)) + 1, $found));
@@ -97,11 +101,21 @@ final class Recall {
     }
 
     /**
+     * Whether this version of the fact was given lately; a version not kept counts as any.
+     *
+     * @param array<int, list<?int>> $given
+     */
+    private static function wasGiven(array $given, Fact $fact): bool {
+        $versions = $given[$fact->id] ?? [];
+        return in_array($fact->version, $versions, true) || in_array(null, $versions, true);
+    }
+
+    /**
      * The facts a name of the message points to: a capitalized word inside a sentence or an identifier, probed by HRR;
      * at most ENTITY_FACTS, most trusted first, not given already.
      *
      * @param list<string> $scopes
-     * @param array<int, int> $given
+     * @param array<int, list<?int>> $given
      * @param list<Fact> $have
      * @param list<string> $selfNames
      * @return list<Fact>
@@ -136,7 +150,7 @@ final class Recall {
                 continue;
             }
             foreach ($this->related($name, $scopes, self::ENTITY_FACTS * 3) as $fact) {
-                if (!isset($taken[$fact->id]) && !isset($given[$fact->id])) {
+                if (!isset($taken[$fact->id]) && !self::wasGiven($given, $fact)) {
                     $candidates[$fact->id] = $fact;
                 }
             }
@@ -182,7 +196,7 @@ final class Recall {
      * The facts the words of a message cover well enough, best first, within the budget.
      *
      * @param list<string> $scopes
-     * @param array<int, int> $given facts given in the conversation lately
+     * @param array<int, list<?int>> $given the versions of facts given in the conversation lately
      * @return list<Fact>
      */
     private function byWords(string $message, array $scopes, array $given, int $budget): array {
@@ -245,7 +259,7 @@ final class Recall {
         $passed = [];
         // spec: brief/memory.md#оценка-и-отбор-фактов — the candidates are the facts that match the most, weighed as the coverage is
         foreach ($this->store->candidates($scopes, [...$known, ...$knownRoots], self::CANDIDATES, $weights + $rootWeights) as $fact) {
-            if (isset($given[$fact->id]) || $fact->trust < self::MIN_TRUST - 1e-9) {
+            if (self::wasGiven($given, $fact) || $fact->trust < self::MIN_TRUST - 1e-9) {
                 continue;
             }
             $holds = array_flip($fact->keys);

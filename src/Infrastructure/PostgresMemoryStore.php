@@ -437,6 +437,19 @@ final class PostgresMemoryStore implements MemoryStore {
         return ['recalled' => self::int($row, 'recalled'), 'helpful' => self::int($row, 'helpful'), 'unhelpful' => self::int($row, 'unhelpful')];
     }
 
+    public function recalledVersions(int $conversationId, int $turns): array {
+        // a turn is a run of the conversation; a recall not tied to a run yet is of the turn that begins now
+        $found = [];
+        foreach ($this->db->execute(
+            'SELECT fact_id, version FROM memory_recalls WHERE conversation_id = ? AND (run_id IS NULL OR run_id IN (SELECT id FROM runs WHERE conversation_id = ? ORDER BY id DESC LIMIT ?))',
+            [$conversationId, $conversationId, max(0, $turns - 1)],
+        ) as $row) {
+            $version = $row['version'] ?? null;
+            $found[self::int($row, 'fact_id')][] = is_int($version) ? $version : null;
+        }
+        return $found;
+    }
+
     public function recalled(int $conversationId, int $window): array {
         $ids = [];
         foreach ($this->db->execute('SELECT fact_id FROM memory_recalls WHERE conversation_id = ? ORDER BY id DESC LIMIT ?', [$conversationId, $window]) as $row) {

@@ -295,7 +295,24 @@ final class InMemoryMemoryStore implements MemoryStore {
     public function markRecalled(int $conversationId, array $factIds, array $versions = []): void {
         foreach ($factIds as $id) {
             $this->recalls[] = [$conversationId, $id];
+            $this->turnRecalls[] = [$conversationId, $id, $versions[$id] ?? null, $this->turns[$conversationId] ?? 0];
         }
+    }
+
+    /** @var array<int, int> the turn of each conversation: each recall in it is one */
+    private array $turns = [];
+    /** @var list<array{int, int, ?int, int}> conversation, fact, version, turn */
+    private array $turnRecalls = [];
+
+    public function recalledVersions(int $conversationId, int $turns): array {
+        $now = $this->turns[$conversationId] = ($this->turns[$conversationId] ?? 0) + 1;
+        $found = [];
+        foreach ($this->turnRecalls as [$conversation, $fact, $version, $turn]) {
+            if ($conversation === $conversationId && $turn > $now - $turns) {
+                $found[$fact][] = $version;
+            }
+        }
+        return $found;
     }
 
     /** Runs are not known here: the database ties a recall to its run. */

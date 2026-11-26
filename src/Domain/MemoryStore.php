@@ -212,6 +212,16 @@ interface MemoryStore {
     public function recalled(int $conversationId, int $window): array;
 
     /**
+     * The versions of facts given in the conversation over its last $turns turns (runs), this one included; a version
+     * not kept is null. A new turn of the conversation begins with this call where turns are not runs.
+     *
+     * spec: brief/memory.md#как-сделано-области-и-факты
+     *
+     * @return array<int, list<?int>> fact id => the versions given
+     */
+    public function recalledVersions(int $conversationId, int $turns): array;
+
+    /**
      * Marks whether a fact the run was given helped its answer; once per recall. False when the run was not given the
      * fact or the recall is marked already.
      *

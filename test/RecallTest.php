@@ -67,6 +67,25 @@ final class RecallTest extends TestCase {
         self::assertSame(['Сергей живёт в Паттайе'], self::texts($this->recall->find('Где живёт Сергей?', ['owner'], 11, selfNames: ['Сергей'])), 'by the words of the question');
     }
 
+    /**
+     * spec: brief/memory.md#как-сделано-области-и-факты — a fact is not given again for some turns of the conversation,
+     * but each version counts on its own: a changed fact is given at once (holographic-memory: the revision)
+     */
+    public function testAFactIsNotRepeatedForSomeTurnsButAChangedOneIsGivenAtOnce(): void {
+        $question = 'Где стоит сервер pve-01?';
+        self::assertSame(['Сервер pve-01 стоит в Хельсинки у Hetzner'], self::texts($this->recall->find($question, ['owner'], 30)));
+        self::assertSame([], self::texts($this->recall->find($question, ['owner'], 30)), 'given the turn before');
+
+        $fact = $this->recall->find('pve-01', ['owner'])[0];
+        $this->store->changeFact($fact->id, 'Сервер pve-01 переехал в Фалькенштейн', $this->analyzer->keys('Сервер pve-01 переехал в Фалькенштейн'), 'переезд');
+        self::assertSame(['Сервер pve-01 переехал в Фалькенштейн'], self::texts($this->recall->find($question, ['owner'], 30)), 'a new version is given at once');
+
+        for ($turn = 0; $turn < Recall::REPEAT_TURNS; $turn++) {
+            $this->recall->find('Бэкапы базы каждую ночь?', ['owner'], 30);
+        }
+        self::assertSame(['Сервер pve-01 переехал в Фалькенштейн'], self::texts($this->recall->find($question, ['owner'], 30)), 'after the window the fact may come again');
+    }
+
     public function testASameRootWordHelpsAnotherWordFindAFactButNeverAlone(): void {
         // spec: brief/memory.md#ключи-и-однокоренные — a root match counts 0.6 of an exact one and never recalls a fact alone
         $this->add('owner', 'Работает ночью в офисе');
