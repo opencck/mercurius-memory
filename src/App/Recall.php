@@ -72,9 +72,11 @@ final class Recall {
 
     /**
      * @param list<string> $scopes
+     * @param list<string> $selfNames the names of the owner and of the one who writes: in many messages, by themselves
+     *        they bring none of their facts; a question about them finds them by its words
      * @return list<Fact> best first, within the budget; marked as given when a conversation is named
      */
-    public function find(string $message, array $scopes, ?int $conversationId = null, int $budget = self::BUDGET): array {
+    public function find(string $message, array $scopes, ?int $conversationId = null, int $budget = self::BUDGET, array $selfNames = []): array {
         if ($scopes === []) {
             return [];
         }
@@ -82,7 +84,7 @@ final class Recall {
         $found = $this->byWords($message, $scopes, $given, $budget);
         // spec: brief/memory.md#факты — and up to two facts of a name the message mentions, without shared words
         $left = $budget - array_sum(array_map(static fn(Fact $f): int => mb_strlen(self::line($f)) + 1, $found));
-        $found = [...$found, ...$this->named($message, $scopes, $given, $found, $left)];
+        $found = [...$found, ...$this->named($message, $scopes, $given, $found, $left, $selfNames)];
         if ($conversationId !== null && $found !== []) {
             // spec: brief/operations.md#квитанция-извлечения-памяти — the version given goes into the receipt of recall
             $versions = [];
@@ -101,9 +103,10 @@ final class Recall {
      * @param list<string> $scopes
      * @param array<int, int> $given
      * @param list<Fact> $have
+     * @param list<string> $selfNames
      * @return list<Fact>
      */
-    private function named(string $message, array $scopes, array $given, array $have, int $left): array {
+    private function named(string $message, array $scopes, array $given, array $have, int $left, array $selfNames = []): array {
         $names = self::names($message);
         if ($names === []) {
             return [];
@@ -116,12 +119,20 @@ final class Recall {
                 $spoken[$key] = true;
             }
         }
+        // spec: brief/memory.md#факты — the name of the owner or of the writer brings no facts by itself (holographic
+        //       memory: self_names)
+        $own = [];
+        foreach ($selfNames as $selfName) {
+            foreach ($this->analyzer->keys($selfName) as $key) {
+                $own[$key] = true;
+            }
+        }
         $candidates = [];
         foreach ($names as $name) {
             // spec: brief/memory.md#оценка-и-отбор-фактов — a name the words already found facts of brings no more: its facts
             //       without shared words are noise beside an answer
             $nameKeys = $this->analyzer->keys($name);
-            if ($nameKeys !== [] && array_filter($nameKeys, static fn(string $k): bool => isset($spoken[$k])) !== []) {
+            if ($nameKeys !== [] && array_filter($nameKeys, static fn(string $k): bool => isset($spoken[$k]) || isset($own[$k])) !== []) {
                 continue;
             }
             foreach ($this->related($name, $scopes, self::ENTITY_FACTS * 3) as $fact) {

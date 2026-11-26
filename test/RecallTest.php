@@ -54,6 +54,19 @@ final class RecallTest extends TestCase {
         self::assertSame([], self::texts($this->recall->find('как дела у ани?', ['owner'], 8)), 'not a name in lower case');
     }
 
+    /**
+     * spec: brief/memory.md#факты — the name of the owner or of the one who writes is in many messages ("Сергей просил…"):
+     * by itself it brings none of their facts; a question about them still finds their facts by its words
+     */
+    public function testTheNameOfTheOwnerOrTheWriterBringsNothingByItself(): void {
+        $this->add('owner', 'Сергей живёт в Паттайе', 0.9);
+        $this->add('owner', 'Сергей любит горький шоколад', 0.8);
+
+        self::assertSame(['Сергей живёт в Паттайе', 'Сергей любит горький шоколад'], self::texts($this->recall->find('Утром Сергей просил перезапустить бота', ['owner'], 9)), 'another name still brings its facts');
+        self::assertSame([], self::texts($this->recall->find('Утром Сергей просил перезапустить бота', ['owner'], 10, selfNames: ['Сергей Крупкин'])));
+        self::assertSame(['Сергей живёт в Паттайе'], self::texts($this->recall->find('Где живёт Сергей?', ['owner'], 11, selfNames: ['Сергей'])), 'by the words of the question');
+    }
+
     public function testASameRootWordHelpsAnotherWordFindAFactButNeverAlone(): void {
         // spec: brief/memory.md#ключи-и-однокоренные — a root match counts 0.6 of an exact one and never recalls a fact alone
         $this->add('owner', 'Работает ночью в офисе');

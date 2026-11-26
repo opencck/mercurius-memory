@@ -27,10 +27,11 @@ final class MemoryContext {
 
     /**
      * @param list<string> $scopes
+     * @param list<string> $selfNames the names of the owner and of the one who writes: no facts by these names alone
      * @return string facts as lines, '' when nothing answers the message
      */
-    public function facts(string $message, array $scopes, int $conversationId): string {
-        return Recall::format($this->recall->find($message, $scopes, $conversationId));
+    public function facts(string $message, array $scopes, int $conversationId, array $selfNames = []): string {
+        return Recall::format($this->recall->find($message, $scopes, $conversationId, selfNames: $selfNames));
     }
 
     /**
