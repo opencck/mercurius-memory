@@ -639,12 +639,18 @@ final class Consolidation {
                 if (++$checked > self::PAIR_BUDGET || count($found) >= self::LIST_CAP) {
                     break 2;
                 }
-                if ($a->scope !== $b->scope || isset($settled[self::pairKey($a, $b)]) || !self::conflict($a, $b) || !$this->journal->due('conflict', $a->id, $b->id, self::PAUSE_NOTICE)) {
+                if ($a->scope !== $b->scope || isset($settled[self::pairKey($a, $b)])) {
+                    continue;
+                }
+                $numbers = self::conflict($a, $b);
+                // spec: brief/memory.md#консолидация-dreaming — one name, the same claim, another detail
+                $detail = !$numbers && !self::duplicates($a, $b) && self::detail($a, $b);
+                if ((!$numbers && !$detail) || !$this->journal->due('conflict', $a->id, $b->id, self::PAUSE_NOTICE)) {
                     continue;
                 }
                 $pending[] = ['conflict', $a->id, $b->id];
                 $found[] = sprintf(
-                    t(self::flip($a, $b) ? 'app.consolidation.conflict_negation' : 'app.consolidation.vozmozhno_protivorechat_drug_drugu_razny'),
+                    t($detail ? 'app.consolidation.conflict_detail' : (self::flip($a, $b) ? 'app.consolidation.conflict_negation' : 'app.consolidation.vozmozhno_protivorechat_drug_drugu_razny')),
                     $a->id,
                     self::cut($a->text),
                     $b->id,
@@ -712,6 +718,51 @@ final class Consolidation {
             return false;
         }
         return self::flip($a, $b) || ($numbersA !== [] && $numbersB !== [] && $numbersA !== $numbersB);
+    }
+
+    /**
+     * About one name, the same claim, another detail: «Сергей живёт в Лиссабоне» and «Сергей живёт в Порту», a
+     * preference that changed. A name — a word with a capital letter anywhere, or an identifier; the claim — the other
+     * words. The pair shares a name and most of the smaller claim, and each has a name or a word the other lacks.
+     *
+     * ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L841-L889 (contradict), L1164-L1193 (_claim) — entity
+     *      overlap times the likeness of the claims; here without vectors, by keys: the first name of each fact must be
+     *      the same, and the pair is a candidate for the owner, never a change
+     */
+    public static function detail(Fact $a, Fact $b): bool {
+        $entitiesA = self::entities($a);
+        $entitiesB = self::entities($b);
+        // the fact is about its first name: a place both name («в Порту») is not who the fact is about
+        if ($entitiesA === [] || $entitiesB === [] || $entitiesA[0] !== $entitiesB[0]) {
+            return false;
+        }
+        $claimA = array_values(array_diff($a->keys, $entitiesA, self::numbers($a)));
+        $claimB = array_values(array_diff($b->keys, $entitiesB, self::numbers($b)));
+        $shared = array_intersect($claimA, $claimB);
+        $smaller = min(count($claimA), count($claimB));
+        if ($shared === [] || $smaller === 0 || (float) count($shared) / (float) $smaller < 0.5) {
+            return false;
+        }
+        $onlyA = array_diff([...$entitiesA, ...$claimA], [...$entitiesB, ...$claimB]);
+        $onlyB = array_diff([...$entitiesB, ...$claimB], [...$entitiesA, ...$claimA]);
+        return $onlyA !== [] && $onlyB !== [];
+    }
+
+    /** @return list<string> the keys of the names of a fact in their order: capitalized words anywhere, identifiers */
+    private static function entities(Fact $fact): array {
+        $split = preg_split('/[^\p{L}\p{N}-]+/u', $fact->text, -1, PREG_SPLIT_NO_EMPTY);
+        $words = $split === false ? [] : $split;
+        $analyzer = new TextAnalyzer();
+        $keys = [];
+        foreach ($words as $word) {
+            if (preg_match('/^\p{Lu}/u', $word) === 1 || TextAnalyzer::isIdentifier(mb_strtolower($word))) {
+                foreach ($analyzer->keys($word) as $key) {
+                    $keys[$key] = true;
+                }
+            }
+        }
+        $held = array_flip($fact->keys);
+        return array_values(array_filter(array_map(strval(...), array_keys($keys)), static fn(string $k): bool => isset($held[$k])));
     }
 
     /** One of the two negates a word both speak of («любит острое» and «не любит острое»). */

@@ -16,6 +16,10 @@ return array (
   'app.consolidation.auto_copy_reason' => 'sleep: repeats fact #%d',
   'app.consolidation.auto_merge' => 'Sleep by itself: facts #%d and #%d merged into “%s” (edit #%d; to undo — /dream undo %d).',
   'app.consolidation.auto_merge_reason' => 'sleep: merged with fact #%d',
+  'app.consolidation.conflict_detail' => 'They may contradict each other (the same about one, another detail — one may be out of date):
+#%d %s
+#%d %s
+Keep the correct one; for the wrong one use /forget <number> or ask me to change it.',
   'app.consolidation.conflict_negation' => 'They may contradict each other (a negation):
 #%d %s
 #%d %s
