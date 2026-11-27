@@ -22,9 +22,9 @@ use function Mercurius\Memory\t;
  *
  * spec: brief/memory.md#страж-потерь
  * spec: brief/memory.md#пробы-владельца
- * ref: references/hermes-dreaming/skills/dreaming/scripts/dream.py@21878d3:L4614-L4737 (check_memory_loss) — more than
+ * ref: references/hermes-dreaming/skills/dreaming/scripts/dream.py@46d2f9e:L4779-L4902 (check_memory_loss) — more than
  *      25% of entries or characters gone, counted from 4 entries or 400 characters
- * ref: references/hermes-dreaming/skills/dreaming/scripts/dream.py@21878d3:L4591-L4611 (probe_found, check_probes) —
+ * ref: references/hermes-dreaming/skills/dreaming/scripts/dream.py@46d2f9e:L4756-L4776 (probe_found, check_probes) —
  *      one alert per probe that went missing, quiet while it stays missing. Here a probe is a question and its fact,
  *      asked through search, not a phrase looked for in the text: what is lost is being found, not only being kept
  */

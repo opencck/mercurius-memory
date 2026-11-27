@@ -97,7 +97,7 @@ final class TextAnalyzer {
     /**
      * Words that negate the word after them (a modal passes it on: «не может прийти»).
      *
-     * ref: references/hermes-dreaming/skills/dreaming/scripts/dream_lang.py@21878d3:L175-L184 (NEGATION_WORDS,
+     * ref: references/hermes-dreaming/skills/dreaming/scripts/dream_lang.py@46d2f9e:L175-L184 (NEGATION_WORDS,
      *      _MODALS) — the Russian and English words of the lists
      */
     public const NEGATIONS = ['не', 'нет', 'без', 'ни', 'никогда', 'нельзя', 'not', 'no', 'never', 'nor', 'neither', 'none',
@@ -193,7 +193,7 @@ final class TextAnalyzer {
      * The keys of the words a text negates: the word after a negation, past a modal («не может прийти» — «приш»).
      *
      * spec: brief/memory.md#консолидация-dreaming — a negation turns a fact into another one
-     * ref: references/hermes-dreaming/skills/dreaming/scripts/dream.py@21878d3:L2326-L2348 (_negated) — the word after
+     * ref: references/hermes-dreaming/skills/dreaming/scripts/dream.py@46d2f9e:L2378-L2400 (_negated) — the word after
      *      the negation; the two-way words and Chinese are not taken
      *
      * @return list<string>

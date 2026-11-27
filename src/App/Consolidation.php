@@ -27,7 +27,7 @@ use function Mercurius\Memory\t;
  * in memory does nothing. The guard against a loss of memory is apart (LossGuard): it runs even when sleep does not.
  *
  * spec: brief/memory.md#консолидация-dreaming
- * ref: references/hermes-dreaming/skills/dreaming/scripts/dream.py@21878d3:L3035-L3068 (find_conflicts) — shared words
+ * ref: references/hermes-dreaming/skills/dreaming/scripts/dream.py@46d2f9e:L3090-L3123 (find_conflicts) — shared words
  *      and differing numbers make a conflict, not a duplicate; L5184-L5190 (_decay_candidates) — unused, old, low trust,
  *      a question and not a deletion; one duplicate pair a night, paused 180 days (scoring.md:L554-L570)
  */
@@ -704,7 +704,7 @@ final class Consolidation {
     /**
      * About the same thing, with numbers that differ or a word one of them negates.
      *
-     * ref: references/hermes-dreaming/skills/dreaming/scripts/dream.py@21878d3:L3035-L3068 (find_conflicts) — a
+     * ref: references/hermes-dreaming/skills/dreaming/scripts/dream.py@46d2f9e:L3090-L3123 (find_conflicts) — a
      *      negation that differs is a conflict before the numbers are looked at
      */
     public static function conflict(Fact $a, Fact $b): bool {

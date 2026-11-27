@@ -157,7 +157,7 @@ final class Proposals {
      * with the proposal; an edit of either fact before the owner decides makes the merge refuse.
      *
      * spec: brief/memory.md#слияние
-     * ref: references/hermes-dreaming/README.md@21878d3:L113-L117 — a merge goes with the versions the human was shown,
+     * ref: references/hermes-dreaming/README.md@46d2f9e:L115-L119 — a merge goes with the versions the human was shown,
      *      and a text that changed since makes it refuse (changed_since). Here the model of sleep wrote the text and
      *      the code checked it (MergeGuard), where in hermes the agent writes it after the human's "yes"
      */

@@ -13,9 +13,9 @@ use Mercurius\Memory\Domain\TextAnalyzer;
  * was said once may be passing. Code counts, no model is asked.
  *
  * spec: brief/memory.md#консолидация-dreaming — what the owner repeated on different days; machine text does not count
- * ref: references/hermes-dreaming/skills/dreaming/references/scoring.md@21878d3:L44-L52 — a human message mentions a
+ * ref: references/hermes-dreaming/skills/dreaming/references/scoring.md@46d2f9e:L44-L52 — a human message mentions a
  *      fact by two shared stems or one rare word (8 letters for Latin, 10 for others), window 60 days; L126-L128 —
- *      distinct local days; dream_lang.py@21878d3:L175-L180 (NEGATION_WORDS) — a message with a negation the fact has
+ *      distinct local days; dream_lang.py@46d2f9e:L175-L180 (NEGATION_WORDS) — a message with a negation the fact has
  *      not (or the other way) says something else; here by sentence, the Russian and English words of the list
  */
 final class Corroboration {
@@ -64,14 +64,21 @@ final class Corroboration {
     }
 
     /**
-     * The person's own words of a stored message: what the app added after them — recalled facts, a forwarded page or
-     * file as an untrusted block, the note about skills — is not what they said.
+     * The person's own words of a stored message: what the app added — the header with the message they answer, recalled
+     * facts, a forwarded page or file as an untrusted block, the note about skills — is not what they said.
      */
     public static function ownWords(string $content): string {
+        // a block of outside data may stand before the person's words as well as after them
+        $content = preg_replace('~<untrusted-data\b.*?</untrusted-data>~su', ' ', $content) ?? $content;
         $cut = strpos($content, '<untrusted-data');
         $content = $cut === false ? $content : substr($content, 0, $cut);
+        // ref: references/hermes-dreaming/skills/dreaming/scripts/dream.py@46d2f9e:L1168-L1176 (REPLY_QUOTE_RE),
+        //      L1832-L1834 (_own_words) — the message a person answers is left out: a bare «ок» under the agent's
+        //      words said nothing of them. Here the header the application puts first names the message by its number
+        //      and quotes the answered one in «…»; the quote ends at its mark before "]", not at a "]" inside it
+        $content = preg_replace('~^\s*\[(?=[^\]\n«]*#\d)(?:[^\]\n«]|«.*?»)*\]\s*~su', '', $content, 1) ?? $content;
         $note = strpos($content, "\n\n" . \Mercurius\Memory\t('skill.library.changed'));
-        return $note === false ? $content : substr($content, 0, $note);
+        return trim($note === false ? $content : substr($content, 0, $note));
     }
 
     /**

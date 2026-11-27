@@ -13,7 +13,7 @@ use Mercurius\Memory\Domain\VerdictCache;
  * cache; only the rest go to the model, in one call of the inner judge.
  *
  * spec: brief/memory.md#судья-пары
- * ref: references/hermes-dreaming/skills/dreaming/scripts/dream_judge.py@21878d3:L36, L401-L407 (PROMPT_VERSION,
+ * ref: references/hermes-dreaming/skills/dreaming/scripts/dream_judge.py@46d2f9e:L37, L404-L410 (PROMPT_VERSION,
  *      cache_key) — the version of the prompt is part of every key: a verdict on other words is no verdict on these
  */
 final class CachedJudge implements SleepJudge {
