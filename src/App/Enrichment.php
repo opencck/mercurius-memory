@@ -20,7 +20,7 @@ use function Mercurius\Memory\t;
  * Pairs of one word in two spellings join the table of words that mean one thing.
  *
  * spec: brief/memory.md#ночное-обогащение
- * ref: references/hermes-plugin-holographic/__init__.py@4a794f8:L2662-L2678 (_update, _enrich) — keywords are a search
+ * ref: references/hermes-plugin-holographic/__init__.py@9b49943:L3008-L3031 (_update, _enrich) — keywords are a search
  *      aid and not a change of the fact (its age stays); facts without them get 3-8 synonyms, other roots and
  *      translations. Here the model of sleep gives them and the code checks them; facts go oldest first, not most
  *      recalled first, and translations wait for the owner's setting

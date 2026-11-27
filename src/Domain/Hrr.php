@@ -13,7 +13,7 @@ namespace Mercurius\Memory\Domain;
  * is their inner product divided by DIM, one pgvector operation.
  *
  * spec: brief/memory.md#hrr-с-самого-начала
- * ref: references/hermes-plugin-holographic/holographic.py@4a794f8:L106-L152 (encode_atom, bind, bundle, similarity,
+ * ref: references/hermes-plugin-holographic/holographic.py@9b49943:L106-L152 (encode_atom, bind, bundle, similarity,
  *      encode_text, encode_fact) — the same atoms and roles; the text is our keys (stems and identifiers), not raw
  *      words, so word forms meet; the entities are the identifiers among the keys
  */

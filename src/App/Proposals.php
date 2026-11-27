@@ -11,6 +11,7 @@ use Mercurius\Memory\Domain\ContentScreen;
 use Mercurius\Memory\Domain\Fact;
 use Mercurius\Memory\Domain\MemoryStore;
 use Mercurius\Memory\Domain\Proposal;
+use Mercurius\Memory\Domain\RelativeDays;
 use Mercurius\Memory\Domain\TextAnalyzer;
 
 use function Mercurius\Memory\t;
@@ -20,7 +21,7 @@ use function Mercurius\Memory\t;
  * proposal changes memory, with a new version. A forgotten text leaves a keyed fingerprint, so it cannot come back.
  *
  * spec: brief/memory.md#как-сделано-области-и-факты — new facts and edits of layer 1 are proposals to the owner
- * ref: references/hermes-plugin-holographic/history.py@4a794f8:L489-L710 (change_fact, end_fact, forget_fact) —
+ * ref: references/hermes-plugin-holographic/history.py@9b49943:L489-L710 (change_fact, end_fact, forget_fact) —
  *      versions and tombstones; a proposal step in front of them is ours
  * ref: references/hermes-agent/tools/memory_tool.py@e96221fa:L56 — layer limits in characters, not tokens (2200 and
  *      1375 there; ours are larger: profile 2000, summary 4000)
@@ -45,6 +46,8 @@ final class Proposals {
         private readonly TextAnalyzer $analyzer,
         private readonly ContentScreen $screen,
         private readonly string $key,
+        /** @var (Closure(): ?\DateTimeImmutable)|null the day of the one whose memory it is; null — relative days stay as written */
+        private readonly ?Closure $today = null,
     ) {}
 
     /**
@@ -86,8 +89,8 @@ final class Proposals {
         }
         switch ($kind) {
             case Proposal::ADD:
+                $text = $this->dated($text, $bySleep);
                 $this->check($text, ContentScreen::FACT_MAX);
-                $this->notForgotten($text);
                 break;
             case Proposal::CHANGE:
             case Proposal::END:
@@ -101,8 +104,8 @@ final class Proposals {
                     throw new InvalidArgumentException(t('app.proposals.about_person_owner_only'));
                 }
                 if ($kind === Proposal::CHANGE) {
+                    $text = $this->dated($text, $bySleep);
                     $this->check($text, ContentScreen::FACT_MAX);
-                    $this->notForgotten($text);
                 } else {
                     $text = $fact->text;
                 }
@@ -131,6 +134,11 @@ final class Proposals {
         $keywords = array_values(array_unique(array_filter(array_map(static fn(string $k): string => trim($k), $keywords), static fn(string $k): bool => $k !== '')));
         if (count($keywords) > self::MAX_KEYWORDS || array_filter($keywords, static fn(string $k): bool => mb_strlen($k) > 40) !== []) {
             throw new InvalidArgumentException(sprintf(t('app.proposals.too_many_keywords'), self::MAX_KEYWORDS));
+        }
+        // ref: references/hermes-plugin-holographic/__init__.py@9b49943:L2486 (_label_problem) — the words given with a fact are
+        //      screened as its text is: they are stored and found by too
+        foreach ($keywords as $keyword) {
+            $this->check($keyword, 40);
         }
         // spec: brief/memory.md#постоянное-разрешение — a card of sleep is marked as sleep's: it goes to the owner and may be allowed for good
         $provenance = $bySleep ? Proposal::SLEEP : ($source === '' ? null : self::SOURCES[$source]);
@@ -297,6 +305,24 @@ final class Proposals {
             $listener($fact, $cards);
         }
         return true;
+    }
+
+    /**
+     * The text with the day after each relative day word («завтра (2026-11-28)»). A text the owner had forgotten is
+     * known as written and as dated. Sleep reads old messages, when the day would be wrong: its texts stay as written.
+     *
+     * spec: brief/memory.md#запись-сведения-о-людях-и-забывание — a relative day gets its date
+     */
+    private function dated(string $text, bool $bySleep): string {
+        $this->notForgotten($text);
+        if ($bySleep || $this->today === null) {
+            return $text;
+        }
+        $dated = RelativeDays::absolutize($text, ($this->today)());
+        if ($dated !== $text) {
+            $this->notForgotten($dated);
+        }
+        return $dated;
     }
 
     private function notForgotten(string $text): void {

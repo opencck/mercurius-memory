@@ -12,7 +12,7 @@ use Wamania\Snowball\StemmerFactory;
  * of recall rests on this more than on vectors.
  *
  * spec: brief/memory.md#ключи-и-однокоренные
- * ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L380 (_coverage_rank) — keys are word stems and
+ * ref: references/hermes-plugin-holographic/retrieval.py@9b49943:L393 (_coverage_rank) — keys are word stems and
  *      identifiers; stop words carry no information
  */
 final class TextAnalyzer {
@@ -32,7 +32,7 @@ final class TextAnalyzer {
         'the', 'a', 'an', 'and', 'or', 'but', 'is', 'are', 'was', 'were', 'be', 'been', 'it', 'its', 'this', 'that', 'to',
         'of', 'in', 'on', 'at', 'for', 'with', 'as', 'by', 'from', 'so', 'do', 'does', 'did', 'not', 'no', 'yes', 'ok',
         'i', 'you', 'he', 'she', 'we', 'they', 'me', 'my', 'your', 'our', 'their', 'what', 'which', 'who', 'please', 'thanks',
-        // ref: references/hermes-plugin-holographic/text.py@4a794f8:L204-L218 (STOP en, ru) — the words of its lists
+        // ref: references/hermes-plugin-holographic/text.py@9b49943:L223-L237 (STOP en, ru) — the words of its lists
         //      this one lacked: an unknown word of a question counts against coverage, so "when", "how", "have" kept
         //      facts out
         'about', 'above', 'after', 'again', 'all', 'am', 'any', 'because', 'before', 'being', 'between', 'both',
@@ -51,12 +51,14 @@ final class TextAnalyzer {
      * Question words that say nothing about the subject of a question but are part of a statement: left out of the
      * words of a question only, never out of a fact's keys.
      *
-     * ref: references/hermes-plugin-holographic/text.py@4a794f8:L322-L326 (QUERY_ONLY_STOP)
+     * ref: references/hermes-plugin-holographic/text.py@9b49943:L415-L419 (QUERY_ONLY_STOP)
      */
     private const QUESTION_ONLY = [
         'какой', 'какая', 'какое', 'какие', 'какого', 'какому', 'каким', 'каком', 'какую', 'каких', 'какими',
         'каков', 'который', 'которая', 'которое', 'которые', 'которого', 'которой', 'которому', 'которым', 'котором',
         'которую', 'которых', 'сколько', 'куда', 'откуда', 'почему', 'зачем',
+        // «что происходит в 02:30», "what happens at 02:30": the verb asks, it names nothing
+        'происходит', 'случается', 'бывает', 'happens', 'happen', 'happening',
     ];
 
     /** Latin letters with marks and their plain forms: «café» is «cafe» (the image has no intl for Normalizer). */
@@ -74,7 +76,7 @@ final class TextAnalyzer {
      * case ending — never by its stem: Snowball cuts «токен» to «ток» and «виза» to «виз».
      *
      * spec: brief/memory.md#словари — loanwords
-     * ref: references/hermes-plugin-holographic/text.py@4a794f8:L670-L719 (_LOANWORDS, _RU_ENDINGS, _loan_forms) — the
+     * ref: references/hermes-plugin-holographic/text.py@9b49943:L894-L943 (_LOANWORDS, _RU_ENDINGS, _loan_forms) — the
      *      table and the forms; holographic also keeps search prefixes for FTS5, here the group's key is enough
      */
     private const LOANWORDS = __DIR__ . '/../../resources/dictionaries/loanwords.txt';
@@ -139,7 +141,8 @@ final class TextAnalyzer {
      */
     public function terms(string $text, bool $question = false): array {
         $text = self::prepare($text);
-        preg_match_all('~/[\w.\-/]+|[\p{L}\p{N}_]+(?:[.\-][\p{L}\p{N}_]+)*~u', $text, $m);
+        // a path opens at a slash that no word stands before: «20/06» and «и/или» are two words each; a time is one word
+        preg_match_all('~(?<![\p{L}\p{N}_])/[\w.\-/]+|\d{1,2}:\d{2}(?![\p{L}\p{N}_:])|[\p{L}\p{N}_]+(?:[.\-][\p{L}\p{N}_]+)*~u', $text, $m);
         /** @var list<non-empty-list<string>> $terms */
         $terms = [];
         $seen = [];
@@ -270,6 +273,9 @@ final class TextAnalyzer {
      * ("10 минут") or a hyphenated word ("кто-то", "e-mail") is an ordinary word.
      */
     public static function isIdentifier(string $key): bool {
+        if (self::isPlainNumber($key)) {
+            return false;
+        }
         if (preg_match('~^/|[\w][._/][\w]~u', $key) === 1) {
             return true;
         }
@@ -277,11 +283,23 @@ final class TextAnalyzer {
     }
 
     /**
+     * A count or a year («3», «2026»), a time («15:30», «9.30», «5pm») or a date («17.11», «17.11.2026», «20/06»,
+     * «2026-11-17»): it says when or how many, not what a message is about. A word of the message, never decisive and
+     * never enough by itself; a longer number (a phone, an order) and other shapes («10.0.0.5», «3.8.6») stay identifiers.
+     *
+     * spec: brief/memory.md#как-сделано-области-и-факты — the identifier
+     * ref: references/hermes-plugin-holographic/retrieval.py@9b49943:L35-L41 (_PLAIN_NUMBER) — the same shapes
+     */
+    public static function isPlainNumber(string $key): bool {
+        return preg_match('~^(?:\d{1,4}|\d{1,2}(?:[:.]\d{2})?(?:am|pm)|\d{1,2}:\d{2}|\d{1,2}[./]\d{1,2}(?:[./](?:\d{2}|\d{4}))?|\d{4}-\d{2}-\d{2})$~', $key) === 1;
+    }
+
+    /**
      * Stems of one root with a key: Snowball makes «ночь» «ноч» but «ночные» «ночн», and the dictionary links them.
      * Recall counts a match through one at a part of an exact match and never by it alone.
      *
      * spec: brief/memory.md#ключи-и-однокоренные — same-root words
-     * ref: references/hermes-plugin-holographic/text.py@4a794f8:L832-L912 (word_roots, _related) — the DerivBase.Ru
+     * ref: references/hermes-plugin-holographic/text.py@9b49943:L1056-L1136 (word_roots, _related) — the DerivBase.Ru
      *      pairs as an adjacency map loaded on the first Russian word; English (Open English Wordnet) was measured
      *      and not taken: no question of the English set changed
      *

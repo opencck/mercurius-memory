@@ -70,4 +70,22 @@ final class TextAnalyzerTest extends TestCase {
             self::assertFalse(\Mercurius\Memory\Domain\TextAnalyzer::isIdentifier($key), $key);
         }
     }
+
+    /**
+     * spec: brief/memory.md#как-сделано-области-и-факты — a count, a year, a time or a date says when or how many, not what
+     * ref: references/hermes-plugin-holographic/retrieval.py@9b49943:L35-L41 (_PLAIN_NUMBER)
+     */
+    public function testATimeOrADateIsAWordNotAnIdentifier(): void {
+        foreach (['3', '2026', '15:30', '9.30', '5pm', '17.11', '17.11.2026', '20/06', '2026-11-17'] as $plain) {
+            self::assertTrue(TextAnalyzer::isPlainNumber($plain), $plain);
+            self::assertFalse(TextAnalyzer::isIdentifier($plain), $plain);
+        }
+        foreach (['10.0.0.5', '3.8.6', 'pve-01', 'v0.21.6', 'qx24', '/etc/hosts'] as $identifier) {
+            self::assertFalse(TextAnalyzer::isPlainNumber($identifier), $identifier);
+            self::assertTrue(TextAnalyzer::isIdentifier($identifier), $identifier);
+        }
+        $analyzer = new TextAnalyzer();
+        self::assertSame(['20', '06'], $analyzer->keys('20/06'), 'a slash inside a word opens no path');
+        self::assertSame(['/etc/hosts'], $analyzer->keys('/etc/hosts'));
+    }
 }

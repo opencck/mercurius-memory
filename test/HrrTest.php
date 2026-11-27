@@ -8,7 +8,7 @@ use Mercurius\Memory\Domain\Hrr;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The golden numbers come from a plain-Python copy of holographic.py@4a794f8 (encode_atom … encode_fact).
+ * The golden numbers come from a plain-Python copy of holographic.py@9b49943 (encode_atom … encode_fact).
  */
 final class HrrTest extends TestCase {
     public function testAtomsMatchTheReference(): void {

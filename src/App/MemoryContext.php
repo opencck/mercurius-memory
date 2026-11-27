@@ -31,7 +31,7 @@ final class MemoryContext {
      * @return string facts as lines, '' when nothing answers the message
      */
     public function facts(string $message, array $scopes, int $conversationId, array $selfNames = []): string {
-        return Recall::format($this->recall->find($message, $scopes, $conversationId, selfNames: $selfNames));
+        return $this->recall->lines($this->recall->find($message, $scopes, $conversationId, selfNames: $selfNames));
     }
 
     /**

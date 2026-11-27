@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Mercurius\Memory\App;
 
 use Closure;
+use Mercurius\Memory\Domain\ContentScreen;
 use Mercurius\Memory\Domain\Fact;
 use Mercurius\Memory\Domain\Hrr;
 use Mercurius\Memory\Domain\MemoryStore;
 use Mercurius\Memory\Domain\TextAnalyzer;
+
+use function Mercurius\Memory\t;
 
 /**
  * Facts that answer a message, not merely share a word with it.
@@ -16,10 +19,10 @@ use Mercurius\Memory\Domain\TextAnalyzer;
  * spec: brief/memory.md#оценка-и-отбор-фактов — coverage of the message's informative keys weighted by IDF within the readable
  *       scopes, times trust and recency; a budget in characters; a fact already given in this conversation is not
  *       repeated within the window
- * ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L964-L1060 (relevant) — IDF weights, words no fact
+ * ref: references/hermes-plugin-holographic/retrieval.py@9b49943:L1004-L1102 (relevant) — IDF weights, words no fact
  *      holds count against coverage at the smallest weight, a matched identifier is decisive, one shared word that
  *      other facts hold too does not pick a fact out; without n-grams, name forms and the FTS index: keys are stems
- * ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L615-L636 (_rerank) — HRR among candidates the words
+ * ref: references/hermes-plugin-holographic/retrieval.py@9b49943:L631-L653 (_rerank) — HRR among candidates the words
  *      already picked; it never lets a fact past the gate. Holographic gives it 0.3 of the score; here it only breaks
  *      ties (TIE), as measured
  */
@@ -31,6 +34,21 @@ final class Recall {
     public const WINDOW = 20;
     /** turns of a conversation a version of a fact is not given again for */
     public const REPEAT_TURNS = 5;
+    /**
+     * a message is read by this many characters: a longer one is a pasted text, and its start says what is asked
+     *
+     * ref: references/hermes-plugin-holographic/__init__.py@9b49943:L732 (_PREFETCH_QUERY_CHARS), L2845 — recall before a
+     *      turn reads 4000 characters, a longer search query is refused
+     */
+    public const QUERY_MAX = 4000;
+    /**
+     * days a fact says its text was changed for
+     *
+     * ref: references/hermes-plugin-holographic/__init__.py@9b49943:L591 (_HISTORY_DAYS), L1909-L1910 (_revisions) — the mark and its 90 days;
+     *      holographic tells a change from a correction, here both are «updated», and a resumed fact is marked too
+     *      (its version grows the same way)
+     */
+    public const CHANGED_DAYS = 90;
     /**
      * why a fact given did not help, a short list (holographic-memory: the task-outcome journal): another person or
      * thing, an old version, not about the question, not enough to answer by, the answer was wrong for another reason
@@ -55,7 +73,7 @@ final class Recall {
     /**
      * facts of a name the message mentions, found without shared words
      *
-     * ref: references/hermes-plugin-holographic/__init__.py@4a794f8:L433 (_ENTITY_FACTS), L1406-L1415 — stream 3 of
+     * ref: references/hermes-plugin-holographic/__init__.py@9b49943:L590 (_ENTITY_FACTS), L1406-L1415 — stream 3 of
      *      prefetch: the top facts of the entities the message names, no word overlap needed, with the same de-dup and
      *      repeat window; holographic keeps an index of entities, here a capitalized word inside a sentence (or an
      *      identifier) is probed by HRR
@@ -63,7 +81,7 @@ final class Recall {
     public const ENTITY_FACTS = 2;
     /**
      * A fact under this trust is not recalled: two «not useful» marks sink a fact the agent inferred.
-     * ref: references/hermes-plugin-holographic/__init__.py@4a794f8:L761 — min_trust_threshold 0.3
+     * ref: references/hermes-plugin-holographic/__init__.py@9b49943:L921 — min_trust_threshold 0.3
      */
     public const MIN_TRUST = 0.3;
 
@@ -76,6 +94,8 @@ final class Recall {
         private readonly TextAnalyzer $analyzer,
         ?Closure $now = null,
         private readonly float $hrrWeight = self::HRR_WEIGHT,
+        /** what may not be stored is not given either: a fact stored under older rules is checked by the rules of today */
+        private readonly ?ContentScreen $screen = null,
     ) {
         $this->now = $now ?? static fn(): int => time();
     }
@@ -90,14 +110,20 @@ final class Recall {
         if ($scopes === []) {
             return [];
         }
+        $message = mb_substr($message, 0, self::QUERY_MAX);
         // spec: brief/memory.md#как-сделано-области-и-факты — not again for REPEAT_TURNS turns, each version on its own:
         //       a changed fact is given at once (holographic-memory: the revision)
         $given = $conversationId === null ? [] : $this->store->recalledVersions($conversationId, self::REPEAT_TURNS);
         $this->stages = [];
         $found = $this->byWords($message, $scopes, $given, $budget);
         // spec: brief/memory.md#факты — and up to two facts of a name the message mentions, without shared words
-        $left = $budget - array_sum(array_map(static fn(Fact $f): int => mb_strlen(self::line($f)) + 1, $found));
-        $found = [...$found, ...$this->named($message, $scopes, $given, $found, $left, $selfNames)];
+        $left = $budget - array_sum(array_map(fn(Fact $f): int => mb_strlen($this->line($f)) + 1, $found));
+        $named = $this->named($message, $scopes, $given, $found, $left, $selfNames);
+        if ($named !== []) {
+            // why a fact was given: by a name of the message, not by its words
+            $this->stages['by_name'] = array_map(static fn(Fact $f): int => $f->id, $named);
+        }
+        $found = [...$found, ...$named];
         // spec: brief/memory.md#журнал-выдачи-причины-и-срок — at which step each candidate fell out, numbers only
         $stages = $this->stages();
         if ($conversationId !== null && $stages !== []) {
@@ -174,13 +200,16 @@ final class Recall {
                     $this->stages['repeat'][] = $fact->id;
                     continue;
                 }
+                if ($this->screened($fact)) {
+                    continue;
+                }
                 $candidates[$fact->id] = $fact;
             }
         }
         usort($candidates, static fn(Fact $a, Fact $b): int => [$b->trust, $b->id] <=> [$a->trust, $a->id]);
         $found = [];
         foreach ($candidates as $fact) {
-            $length = mb_strlen(self::line($fact)) + 1;
+            $length = mb_strlen($this->line($fact)) + 1;
             if (count($found) >= self::ENTITY_FACTS || $length > $left) {
                 break;
             }
@@ -228,7 +257,7 @@ final class Recall {
         }
         $keys = array_values(array_unique(array_merge(...$terms)));
         // spec: brief/memory.md#ключи-и-однокоренные — a same-root word counts ROOT_WEIGHT of an exact one and never recalls alone
-        // ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L276-L291 — the root match weighed at
+        // ref: references/hermes-plugin-holographic/retrieval.py@9b49943:L288-L303 — the root match weighed at
         //      _DERIV_WEIGHT; here the question's stems are widened, so facts keep their keys as they are
         /** @var list<list<string>> $termRoots the same-root keys of each word */
         $termRoots = [];
@@ -266,6 +295,8 @@ final class Recall {
                 }
             }
         }
+        // a message of numbers alone («что в 15:30?») is about them; with a word beside them it is about the word
+        $wordy = array_filter($terms, static fn(array $term): bool => !TextAnalyzer::isPlainNumber($term[0])) !== [];
         $knownWeights = array_filter($termWeights, static fn(float $w): bool => $w > 0.0);
         if ($knownWeights === []) {
             return [];
@@ -292,6 +323,7 @@ final class Recall {
             $holds = array_flip($fact->keys);
             $covered = 0.0;
             $exact = 0;
+            $worded = false;
             $rooted = 0;
             $identifier = false;
             $frequent = false;
@@ -299,6 +331,7 @@ final class Recall {
                 $hit = array_values(array_filter($term, static fn(string $k): bool => isset($holds[$k])));
                 if ($hit !== []) {
                     $exact++;
+                    $worded = $worded || !TextAnalyzer::isPlainNumber($term[0]);
                     $covered += $termWeights[$i];
                     foreach ($hit as $key) {
                         $identifier = $identifier || TextAnalyzer::isIdentifier($key);
@@ -319,6 +352,17 @@ final class Recall {
             }
             if ($exact === 0) {
                 $this->stages['root_only'][] = $fact->id;
+                continue;
+            }
+            // spec: brief/memory.md#как-сделано-области-и-факты — a shared number, time or date is no word of the message:
+            //       «назови 3 причины» is not about the printer with 3 trays
+            //       ; a message that names nothing but the number is about it
+            // ref: references/hermes-plugin-holographic/retrieval.py@9b49943:L1089-L1092 (relevant) — the same rule
+            if (!$worded && $wordy) {
+                $this->stages['number_only'][] = $fact->id;
+                continue;
+            }
+            if ($this->screened($fact)) {
                 continue;
             }
             $coverage = min(1.0, $covered / $sum);
@@ -356,7 +400,7 @@ final class Recall {
         $found = [];
         $left = $budget;
         foreach ($scored as [$fact]) {
-            $length = mb_strlen(self::line($fact)) + 1;
+            $length = mb_strlen($this->line($fact)) + 1;
             if ($length > $left) {
                 $this->stages['budget'][] = $fact->id;
                 continue;
@@ -368,8 +412,9 @@ final class Recall {
     }
 
     /**
-     * The step each candidate of the last recall fell out at: repeat, trust, root_only, coverage, lone_word, below_best,
-     * budget; self_name — a name of the owner or the writer was not followed. Numbers of facts only.
+     * The step each candidate of the last recall fell out at: repeat, trust, root_only, number_only, screen, coverage,
+     * lone_word, below_best, budget; self_name — a name of the owner or the writer was not followed; by_name — the facts
+     * given by a name of the message, not by its words. Numbers of facts only.
      *
      * @return array<string, list<int>>
      */
@@ -392,7 +437,7 @@ final class Recall {
     /**
      * Facts tied to a word or a name by HRR: as an entity or as a word of the content.
      *
-     * ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L819-L839 (related) — the best of the entity and
+     * ref: references/hermes-plugin-holographic/retrieval.py@9b49943:L859-L879 (related) — the best of the entity and
      *      content probes against the noise threshold; one database query instead of a pass over every vector
      *
      * @param list<string> $scopes
@@ -425,10 +470,41 @@ final class Recall {
 
     /** @param list<Fact> $facts one line per fact, whole */
     public static function format(array $facts): string {
-        return implode("\n", array_map(self::line(...), $facts));
+        return implode("\n", array_map(self::plain(...), $facts));
     }
 
-    private static function line(Fact $fact): string {
+    /**
+     * The facts as they are given to the model: one line per fact, whole; a fact whose text changed lately says so.
+     *
+     * @param list<Fact> $facts
+     */
+    public function lines(array $facts): string {
+        return implode("\n", array_map($this->line(...), $facts));
+    }
+
+    /** Whether the screen of today refuses the text of a fact: it is not given, and the step is kept. */
+    private function screened(Fact $fact): bool {
+        if ($this->screen === null || $this->screen->problem($fact->text) === null) {
+            return false;
+        }
+        $this->stages['screen'][] = $fact->id;
+        return true;
+    }
+
+    /**
+     * spec: brief/memory.md#как-сделано-области-и-факты — the day the text was changed, for CHANGED_DAYS: a model that
+     *       still sees the old value earlier in the conversation does not argue for it; the old text is never shown
+     */
+    private function line(Fact $fact): string {
+        $line = self::plain($fact);
+        $age = ($this->now)() - $fact->updatedAt;
+        if ($fact->version <= 1 || $age < 0 || $age > self::CHANGED_DAYS * 86400) {
+            return $line;
+        }
+        return sprintf('%s (%s %s)', $line, t('app.recall.changed'), date('Y-m-d', $fact->updatedAt));
+    }
+
+    private static function plain(Fact $fact): string {
         return sprintf('[#%d] %s', $fact->id, $fact->text);
     }
 }

@@ -10,12 +10,12 @@ namespace Mercurius\Memory\Domain;
  * stored as written; only its keys are folded.
  *
  * spec: brief/memory.md#китайский-язык
- * ref: references/hermes-plugin-holographic/text.py@4a794f8:L1799-L1897 (_ZhTable, _zh_table, zh_words) — the
+ * ref: references/hermes-plugin-holographic/text.py@9b49943:L2042-L2140 (_ZhTable, _zh_table, zh_words) — the
  *      dictionary's format and the most probable split by word frequency (jieba's route without its HMM)
- * ref: references/hermes-plugin-holographic/text.py@4a794f8:L1899-L1918 (_zh_alone) — a one-character word is a key
+ * ref: references/hermes-plugin-holographic/text.py@9b49943:L2142-L2161 (_zh_alone) — a one-character word is a key
  *      only when it is not a function character, a negator, a numeral or one of the commonest; holographic searches
  *      substrings of the text with FTS, here pairs and words are keys of the fact
- * ref: references/hermes-plugin-holographic/text.py@4a794f8:L1663, L1675 (CJK_FUNCTION, CJK_NEGATORS) — the lists
+ * ref: references/hermes-plugin-holographic/text.py@9b49943:L1906, L1918 (CJK_FUNCTION, CJK_NEGATORS) — the lists
  */
 final class Chinese {
     /** characters that carry grammar, not the subject */

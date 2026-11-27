@@ -725,7 +725,7 @@ final class Consolidation {
      * preference that changed. A name — a word with a capital letter anywhere, or an identifier; the claim — the other
      * words. The pair shares a name and most of the smaller claim, and each has a name or a word the other lacks.
      *
-     * ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L841-L889 (contradict), L1164-L1193 (_claim) — entity
+     * ref: references/hermes-plugin-holographic/retrieval.py@9b49943:L881-L929 (contradict), L1164-L1193 (_claim) — entity
      *      overlap times the likeness of the claims; here without vectors, by keys: the first name of each fact must be
      *      the same, and the pair is a candidate for the owner, never a change
      */

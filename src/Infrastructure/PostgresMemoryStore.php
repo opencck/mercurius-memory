@@ -16,7 +16,7 @@ use function Mercurius\Memory\t;
 
 /**
  * spec: brief/memory.md#факты — facts with versions in PostgreSQL, keys in a GIN-indexed array
- * ref: references/hermes-plugin-holographic/history.py@4a794f8:L489-L710 (change_fact, end_fact, forget_fact, _erase)
+ * ref: references/hermes-plugin-holographic/history.py@9b49943:L489-L710 (change_fact, end_fact, forget_fact, _erase)
  *      — versions and tombstones; here one database with a scope column instead of a file per scope
  */
 final class PostgresMemoryStore implements MemoryStore {
@@ -259,7 +259,7 @@ final class PostgresMemoryStore implements MemoryStore {
     }
 
     public function rateFact(int $id, float $delta, bool $helpful): ?float {
-        // ref: references/hermes-plugin-holographic/store.py@4a794f8:L694-L709 (record_feedback) — updated_at stays
+        // ref: references/hermes-plugin-holographic/store.py@9b49943:L700-L715 (record_feedback) — updated_at stays
         $row = $this->db->execute(
             "UPDATE facts SET trust = least(1, greatest(0, trust + ?)), helpful_count = helpful_count + ? WHERE id = ? AND status = 'active' RETURNING trust::float8 AS trust",
             [$delta, $helpful ? 1 : 0, $id],

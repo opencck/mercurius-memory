@@ -74,6 +74,7 @@ Keep the correct one; for the wrong one use /forget <number> or ask me to change
   'app.proposals.merge_other_place' => 'Only two different facts of one place can be merged.',
   'app.proposals.merge_stale' => 'Accepted, but the facts changed after the proposal — nothing was merged.',
   'app.proposals.ne_zapisyvayu' => 'Not recording: ',
+  'app.recall.changed' => 'updated',
   'app.proposals.neizvestnyy_vid_izmeneniya' => 'Unknown kind of change: ',
   'app.proposals.no_project_here' => 'There is no active project here that the person may see — a fact of a project has nowhere to go.',
   'app.proposals.nuzhna_prichina_vladelets_reshaet_po' => 'A reason is needed: the owner decides based on it.',
